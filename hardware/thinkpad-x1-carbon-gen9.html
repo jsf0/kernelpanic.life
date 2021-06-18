@@ -1,0 +1,230 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>The ThinkPad X1 Carbon 9th Gen</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+
+<h2>The ThinkPad X1 Carbon 9th Gen</h2>
+<h3>14-May-2021</h3>
+<img src="/img/x1-carbon-gen9.jpg" alt="A pair of X1 Carbon Gen 9 ThinkPads">
+
+<p><strong>Year:</strong> 2021</p>
+<p><strong>CPU:</strong> 2.8 GHz Intel Core i7-1165G7 (4 physical cores, 8 logical cores with SMT)</p>
+<p><strong>Graphics:</strong> Intel Xe (Tiger Lake)</p>
+<p><strong>RAM:</strong> 16 GB</p>
+<p><strong>Storage:</strong> 256 GB Toshiba KXG6AZNV256G NVMe SSD</p>
+<p><strong>"But can it run Chrome?":</strong> Yes </p>
+<p><a href="x1c9hdr_dmesg.txt">dmesg</a>
+
+<p>My employer recently issued me a new 9th Gen X1 Carbon and I liked it enough to buy one for myself. This post will compare the two side by side.</p>
+
+<p>The company X1 comes with the 400 nit 1920x1200 display, and the i5-1145G7 CPU. The display color accuracy is noticeably improved over the T480 and T14 I have here, both of which have the low-end 1920x1080 panel offered those years. 16:10 is a nice aspect ratio and combined with the much thinner bezels, the laptop's footprint is much more compact than the 16:9 T-series. I have it running Ubuntu 21.04, and everything works as you would expect. Battery life is somewhere around 10 hours at 45% screen brightness.</p>
+
+<p>The X1 that I bought has the i7-1165G7 and the 3840x2400 HDR display. Right off the bat, you will notice that this is a heavier laptop than the 1920x1200 X1, and all of that weight is in the display. But that is a price worth paying because the display is stunning, with excellent sharpness and dazzling color accuracy. Subjectively, it's at least on par with or better than the 2018 Retina MacBook Air, and better than the 2014 15" Retina MacBook Pro. After years of staring at ThinkPad etch-a-sketch quality displays, they have finally given us a display worth looking at. Nice.</p>
+
+<p>Less nice is the keyboard lottery. The company X1 has a truly brilliant keyboard. The keys are soft but have a very tactile snap and do not wiggle at all. My X1's keyboard is apparently from a different supplier (update: not true, see below). The keys have much less of a tactile feel when pressed, and they wiggle somewhat when touched lightly. I can get used to this--and it is still a good keyboard--but after using the company X1, it is noticeably worse, and annoying. Come on Lenovo. And before you suggest it, no I am not going to just swap keyboards with the work laptop. For one thing, it would be unethical, and for another, removing the keyboard in these is quite the surgical operation. Gone are the old days when a ThinkPad keyboard could be removed with a couple screws, at least for the X1.</p>
+
+<p>While the keyboard is apparently still a hit or miss affair with Lenovo, they did improve the touchpad. It has a glassy feel reminiscent of Macs, and is pleasant to use. Purists will want to use the TrackPoint, and I replaced the standard TrackPoint cap with a concave cap made by Saoto Tsuchiya of <a href="https://www.etsy.com/shop/SaotoTech">SaotoTech</a>. I have been using these caps for years and they are quite simply the best upgrade you can do with your ThinkPad. The amount of pressure required is greatly reduced with the concave design, and they fit perfectly. If you plan to use the TrackPoint on these, I strongly recommend SaotoTech. I have no idea why Lenovo doesn't ship with this design from the factory. For middle button scrolling, I use the following /etc/X11/xorg.conf:</p>
+
+<pre>
+<code>
+Section "InputDevice"
+        Identifier  "Trackpoint"
+        Driver      "mouse"
+        Option      "Protocol" "Auto"
+        Option      "Device" "/dev/wsmouse"
+EndSection
+
+Section "InputClass"
+  Identifier    "Trackpoint"
+        MatchIsPointer  "True"
+        Option          "Emulate3Buttons"       "False"
+        Option          "EmulateWheel"  "True"
+        Option          "EmulateWheelButton"    "2"
+        Option          "XAxisMapping"  "6 7"
+        Option          "YAxisMapping"  "4 5"
+EndSection
+</code>
+</pre>
+
+<p>Software-wise, I briefly ran Arch Linux on this to test a few things, but now am running OpenBSD -current (6.9 right now) on the HDR X1 and things are mostly good. The AX201 wifi is supported by the iwx driver. I did run into a bug where this had trouble connecting to an AP that was using mixed WPA2/WPA1 and whose channel was identical to a neighboring AP with the same SSID. I have not had this issue at home with WPA2 and 5 GHz. Support was only added for the AX201 a couple weeks ago, and commits are still coming in for iwx quickly, so I expect this device will improve over time (though this could have been a buggy AP).</p>
+
+<p>The Intel Xe graphics are supported by inteldrm, and this is capable of running at full 3840x2400 resolutions smoothly. I have seen a couple graphical stutters when running Chromium on this that are not present in Firefox, which runs just fine with webrender and layers acceleration enabled. There were occasions when switching between window groups in cwm led to Xorg getting stuck, but curiously this has not happened since I stopped using oxbar. I am not sure what the cause is here, though inteldrm routinely spits errors into dmesg. Again, this is brand new hardware, so I expect this will improve. In Arch Linux, graphics were functional with xf86-video-intel, but the performance at full resolution was appalling. Using intel-media-driver was the solution.</p>
+
+<p>In OpenBSD, I run at full display resolution, and with GTK and QT apps at 2x scale, set with the following in my ~/.xsession file:</p>
+
+<pre>
+<code>
+export GDK_SCALE=2.0
+export QT_SCALE_FACTOR=2.0
+</code>
+</pre>
+
+<p>This works nicely with Firefox and I have not had any problems. It is also possible to run this at 1920x1200 set with xrandr like so:</p>
+
+<pre>
+<code>
+xrandr --output eDP-1 --mode 1920x1200
+</code>
+</pre>
+
+<p>This eliminates the need for scaling (at least 2x scaling) and everything still seems pretty sharp, but not <i>quite</i> as sharp as 3840x2400 with scaling.</p> 
+
+<p>The Dolby Atmos sound works out of the box on OpenBSD and can be controlled by the keyboard controls (actually, all of the Fn keys work out of the box). Sound quality is quite good, and a noticeable step up from the T14. Not quite as good as the newer Macs however. In Arch Linux, I had sound controlled by ALSA and it worked fine.</p>
+
+<p>Battery life in OpenBSD is reported at around 5 hours at 50% display brightness but in reality is closer to 4, whereas battery life in Arch with TLP enabled was reported at 10 hours, though in reality was more like 7. Actual power consumption in OpenBSD at idle and 50% brightness is about 11.5 watts, and this has a 57 watt-hour battery capacity. In Linux it was around 7.5 watts, and even less than that on the 1920x1200 version. The laptop runs hotter in OpenBSD compared to Linux too. This is one area where Linux is far ahead of OpenBSD on this hardware. Another area is suspend/resume support, which works fine in Linux on the 5.12 kernel, and doesn't work at all on OpenBSD. This is reportedly due to the 9th Gen lacking ACPI S3 suspend mode, as Joshua Stein <a href="https://jcs.org/2021/01/27/x1nano">reported</a> on the X1 Nano. Hibernation works with ZZZ, and that has been what I am doing instead, though it is less convenient.</p> 
+
+<p>Overall I think Lenovo has made a very good laptop, with good Linux and BSD support. I do wish there was less variation in keyboard quality, and I wish the keyboard could be swapped without basically disassembling the entire laptop. The standard 400 nit 1920x1200 display works well, and the 3840x2400 HDR display is gorgeous and completely worth the money. Hardware support in OpenBSD is coming along, and with the popularity of these amongst developers, I expect that the quirks will be worked out. It works flawlessly in Ubuntu out of the box, and with some tinkering you can get Arch to run equally as well, so this is a good choice if you are planning to run Linux.</p> 
+
+<p><strong>Update:</strong> A helpful Redditor (/u/ibmthink) recommended checking the keyboard supplier with Lenovo's <a href="https://support.lenovo.com/us/en/partslookup">parts lookup tool</a>. After inputting the serial numbers of both laptops, it turns out they both are using Chicony keyboards with the same part number (5M11C53235) and same mfg. part number (SBB0Z70654). This is disappointing, because I had hoped to eventually replace my keyboard with a better one, but if there is this much quality variance in the keyboard from the same supplier, this may not be easy.</p>
+
+<p>Additionally, the display panel EDIDs of both laptops are below.</p>
+
+<p>Company X1C9 with 1920x1200 panel:</p>
+
+<pre>
+<code>
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 0e 6f 04 14 00 00 00 00
+00 1e 01 04 a5 1e 13 78 03 12 9b a4 54 4c 9b 24
+0d 4f 53 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 35 3c 80 a0 70 b0 23 40 30 20
+36 00 2e bd 10 00 00 18 00 00 00 fd 00 30 3c 4a
+4a 0f 01 0a 20 20 20 20 20 20 00 00 00 fe 00 43
+53 4f 54 20 54 33 0a 20 20 20 20 20 00 00 00 fe
+00 4d 4e 45 30 30 37 4a 41 31 2d 31 0a 20 00 c9
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.4
+  Vendor & Product Identification:
+    Manufacturer: CSO
+    Model: 5124
+    Made in: 2020
+  Basic Display Parameters & Features:
+    Digital display
+    Bits per primary color channel: 8
+    DisplayPort interface
+    Maximum image size: 30 cm x 19 cm
+    Gamma: 2.20
+    Supported color formats: RGB 4:4:4
+    First detailed timing includes the native pixel format and preferred refresh rate
+    Display is continuous frequency
+  Color Characteristics:
+    Red  : 0.6406, 0.3291
+    Green: 0.2968, 0.6074
+    Blue : 0.1425, 0.0517
+    White: 0.3105, 0.3271
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  1920x1200   60.001 Hz   8:5    74.101 kHz 154.130 MHz (302 mm x 189 mm)
+                 Hfront   48 Hsync  32 Hback  80 Hpol N
+                 Vfront    3 Vsync   6 Vback  26 Vpol N
+  Display Range Limits:
+    Monitor ranges (Bare Limits): 48-60 Hz V, 74-74 kHz H, max dotclock 150 MHz
+    Alphanumeric Data String: 'CSOT T3'
+    Alphanumeric Data String: 'MNE007JA1-1'
+Checksum: 0xc9
+</code>
+</pre>
+
+<p>My X1C9 with the 3840x2400 HDR panel:</p>
+
+<pre>
+<code>
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 0e 6f 03 14 00 00 00 00
+00 1e 01 04 b5 1e 13 78 03 e2 06 ae 50 42 ae 24
+11 53 58 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 80 e8 00 a0 f0 60 50 90 30 20
+36 00 2e bd 10 00 00 18 00 00 00 fd 00 30 3c 95
+95 3c 01 0a 20 20 20 20 20 20 00 00 00 fe 00 43
+53 4f 54 20 54 33 0a 20 20 20 20 20 00 00 00 fe
+00 4d 4e 45 30 30 37 5a 41 31 2d 32 0a 20 01 6a
+
+02 03 0f 00 e3 05 80 00 e6 06 05 01 6a 6a 24 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 9a
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.4
+  Vendor & Product Identification:
+    Manufacturer: CSO
+    Model: 5123
+    Made in: 2020
+  Basic Display Parameters & Features:
+    Digital display
+    Bits per primary color channel: 10
+    DisplayPort interface
+    Maximum image size: 30 cm x 19 cm
+    Gamma: 2.20
+    Supported color formats: RGB 4:4:4
+    First detailed timing includes the native pixel format and preferred refresh rate
+    Display is continuous frequency
+  Color Characteristics:
+    Red  : 0.6826, 0.3144
+    Green: 0.2578, 0.6816
+    Blue : 0.1406, 0.0664
+    White: 0.3251, 0.3457
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  3840x2400   60.000 Hz   8:5   148.800 kHz 595.200 MHz (302 mm x 189 mm)
+                 Hfront   48 Hsync  32 Hback  80 Hpol N
+                 Vfront    3 Vsync   6 Vback  71 Vpol N
+  Display Range Limits:
+    Monitor ranges (Bare Limits): 48-60 Hz V, 149-149 kHz H, max dotclock 600 MHz
+    Alphanumeric Data String: 'CSOT T3'
+    Alphanumeric Data String: 'MNE007ZA1-2'
+  Extension blocks: 1
+Checksum: 0x6a
+
+----------------
+
+Block 1, CTA-861 Extension Block:
+  Revision: 3
+  Native detailed modes: 0
+  Colorimetry Data Block:
+    BT2020RGB
+  HDR Static Metadata Data Block:
+    Electro optical transfer functions:
+      Traditional gamma - SDR luminance range
+      SMPTE ST2084
+    Supported static metadata descriptors:
+      Static metadata type 1
+    Desired content max luminance: 106 (496.743 cd/m^2)
+    Desired content max frame-average luminance: 106 (496.743 cd/m^2)
+    Desired content min luminance: 36 (0.099 cd/m^2)
+Checksum: 0x9a
+</code>
+</pre>
+
+ 
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

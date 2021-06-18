@@ -1,0 +1,47 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>Lazy Configuration Management</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+<h2>Lazy Configuration Management</h2>
+<h3>10-April-2021</h3>
+<p>I have a bad habit of buying old computers, and part of the tedium associated with this is setting up each one exactly how I want it, or applying a config that I already know I like on a new machine. Of course, there are many configuration management tools for automating configuration, such as Puppet, Ansible, Chef, and others, but they all suffer from one problem: they take effort to use, and I can't be bothered.</p>
+
+<p>I wanted something similar, but stripped to the bare minimum. Ideally such a tool would require no dependencies on the client, no agent or other extra software installed on the target machine, and not require learning any markup languages.</p>
+
+<p>The result of this was <a href="https://github.com/jsf0/standoff">standoff</a>. Since I primarily use OpenBSD, writing this in Perl (eek!) mostly solves the dependency problem, since it is included in the base system. SSH can be used for connections, and the actual config files are in INI format, so they are easy to read and understand. The only dependencies are the Perl modules Net::OpenSSH and Config::IniFiles, and nothing needs to be running or installed on the target host other than SSH and a shell.</p>
+
+<p>Config files follow a simple format. Set the target(s), any files you want to upload, and any commands you want to run. An example is below:</p>
+<pre><code>
+[Target]
+target=172.16.1.1
+ssh_key=/path/to/ssh_key
+
+[Files]
+file=httpd.conf
+
+[Commands]
+command=doas cp httpd.conf /etc
+command=doas rcctl reload httpd
+</code></pre>
+
+<p>Then, you can apply the config on the target like so:</p>
+<pre><code>$ standoff -f payload_file.ini</code></pre>
+<p>Is this better than Ansible or Puppet? No. But it's 1 fairly small Perl file, which you might even be able to understand. You can use it in weird situations, like remotely configuring Ubiquiti access points without using Ubiquiti's controller software (I don't know why you would want to do this, but you can). You don't need to learn an actual markup language to use it. If I have a situation that calls for something like Ansible but isn't worth the work to set it up, this does the job.</p> 
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

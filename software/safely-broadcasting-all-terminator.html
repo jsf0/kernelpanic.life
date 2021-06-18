@@ -1,0 +1,35 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>Safely Broadcasting All With Terminator</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+<h2>Safely Broadcasting All With Terminator</h2>
+<h3>03-June-2021</h3>
+
+<p>This won't be a long post, but hopefully will save someone out there from a disaster.</p>
+
+<p>I wrote <a href="/software/broadcast-commands-in-tmux.html">before</a> about how I am a fan of Terminator and its "broadcast all" feature, which allows you to send a command to multiple Terminator panes or windows simultaneously. When combined with the pane splitting feature, this can be a tremendous time saver when you need to run the same command on multiple servers, for example, and have multiple SSH sessions open.</p>
+
+<p>However, "broadcast all" can be dangerous, because Terminator will happily send that command to <strong>all</strong> of your Terminator windows, even in other virtual desktops. Working on configuring some out-of-production servers in one Terminator window? Forgot about that minimized Terminator window that has an open SSH session to a production server? It's easy to see where this could go. Fortunately, the only damage I have inflicted with this mistake (so far) was to my ego when I sent a reboot command to a bunch of remote machines, and was very surprised to see my own laptop reboot too. Sigh.</p>
+
+<p>The "broadcast group" alternative seems to be the intended way to prevent this, but this requires actually setting up groups and then manually assigning Terminator instances to them. I simply can't be bothered. Instead, I just want to broadcast to multiple panes in my current Terminator window and nowhere else.</p>
+
+<p>Fortunately, there's an easy solution: don't let Terminator use DBus. Go to preferences, uncheck "DBus server", done. Now "broadcast all" will only send your commands to the current window and its panes. You other Terminator sessions will be untouched.</p> 
+
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

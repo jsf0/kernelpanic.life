@@ -1,0 +1,45 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>Broadcast Commands in tmux</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+<h2>Broadcast Commands in tmux</h2>
+<h3>23-April-2021</h3>
+
+<p>I am a big fan of the <a href="https://gnome-terminator.org/">Terminator</a> terminal emulator because of its ability to both act as a multiplexer and broadcast a command to all panes simultaneously. This drastically speeds up executing the same task on multiple servers simultaneously (starting a Puppet run on  a bunch of servers at once, for example).</p>
+
+<p>However, one problem with Terminator is that it is a somewhat heavyweight application, pulling in piles of dependencies on a lean Linux or BSD install. As far as I know, is not available for macOS either. It also requires X11, which is a problem if running through a <a href="/hardware/dec-alphastation-250.html">VT220</a>. Fortunately, there's <a href="https://github.com/tmux/tmux">tmux</a>, a lightweight terminal multiplexer which can be made to broadcast to multiple panes just like Terminator, but does not have a large dependency chain, and comes in the OpenBSD base system.</p>
+
+<p>The magic is in tmux's "synchronize-panes" option, which can be toggled within a tmux session by typing the prefix combination, ctrl-b, then the colon : , which opens a prompt that can be used to set various options. The following option will toggle broadcasting to all panes:</p>
+
+<pre><code>setw synchronize-panes</code></pre> 
+
+<p>Typing that again will turn off pane synchronization, but this is a bit cumbersome. Instead of doing that each time, I made a keybinding shortcut in ~/.tmux.conf that will toggle it for me:</p>
+
+<pre>
+<code>
+bind a setw synchronize-panes
+setw -g window-status-current-format '#{?pane_synchronized,#[bg=red],}#I:#W'
+setw -g window-status-format         '#{?pane_synchronized,#[bg=red],}#I:#W'
+</code>
+</pre>
+
+<p>The top line binds the 'a' key to the synchronize panes option. To toggle it now, just do ctrl-b, then 'a'. The bottom two lines are shamelessly stolen from Jonathan Palardy's excellent <a href="https://blog.jpalardy.com/posts/tmux-synchronized-panes/">blog post</a> about the synchronize panes option in tmux. These lines set the pane borders to red when pane synchronization is on, so that you have a visual indicator of it, saving you from the potential catastrophe of inadvertently broadcasting a dangerous command when SSH'd in to multiple servers.</p>
+
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

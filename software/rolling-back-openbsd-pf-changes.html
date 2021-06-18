@@ -1,0 +1,87 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>Rolling Back OpenBSD PF Changes</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+<h2>Rolling Back OpenBSD PF Changes</h2>
+<h3>05-June-2021</h3>
+
+<p>If you have ever done something dumb in a firewall config and locked yourself out of a machine, you will appreciate the ability to automatically roll a configuration back to a previous version after a timeout period. This is something that commercial routers and firewall devices from Cisco, Juniper, and others have implemented, though their solutions cover more than just the firewall itself.</p>
+
+<p>My typical workflow with PF looks something like this:</p>
+
+<p>1.) Make a backup copy of /etc/pf.conf</p>
+<p>2.) Open /etc/pf.conf in my favorite text editor.</p>
+<p>3.) Make bad decisions.</p>
+<p>4.) Save and exit.</p>
+<p>5.) Run 'pfctl -f /etc/pf.conf' and pray</p>
+
+<p>The obvious fault in this is that if I lock myself out or cause some sort of calamity, there is no built-in ability to revert to a previous config automatically with OpenBSD's pfctl(8). You can accomplish something like this with a shell one-liner:</p>
+
+<pre>
+<code>
+# pfctl -f /etc/pf.conf && sleep 60 && pfctl -d
+</code>
+</pre>
+
+<p>This will load the /etc/pf.conf ruleset, wait 60 seconds, and then disable PF so you can get back in and fix whatever you broke. If you wanted instead to load a different ruleset, you could do something like this:</p>
+
+<pre>
+<code>
+# pfctl -f /etc/pf.conf && sleep 60 && pfctl -f /etc/pf.conf.backup
+</code>
+</pre>
+
+<p>However, there are some disadvantages to one liners like this. They are not very extensible. If you want to take other actions on timeout, the one-liner can get messy quickly.</p>
+
+<p>They aren't very flexible. If you want to send the whole rollback process to the background so you can do other tasks, like testing your config, you can't really do this nicely or cleanly in a one liner, though it is possible. You can run it in tmux and switch back to it to send it a Ctrl-C as sort of a workaround.</p>
+
+<p>It also is not easy to add logging. When changing PF configs it can be nice to see exactly which one was loaded, or if the process was interrupted.</p>
+
+<p>Sometimes it can be useful to copy the backup config over to /etc/pf.conf so that it persists across a reboot. Doing this in a one liner is certainly possible, but involves more typing, and I am too lazy to do that.</p>
+
+<p>I wanted a somewhat more robust and permanent solution than this that I could modify in the future, that also did not involve cron(8) in any way. Enter <a href="https://github.com/jsf0/rpfload">rpfload</a>, a simple Perl wrapper around pfctl(8) that handles all of the above.</p>
+
+<p>rpfload can be used to load /etc/pf.conf and also automatically rollback to the backup file after a configurable period of time:</p>
+
+<pre>
+<code>
+# rpfload -f /etc/pf.conf -b /etc/pf.conf.backup
+</code>
+</pre>
+
+<p>This will load /etc/pf.conf, wait 60 seconds by default (this timeout is configurable with the -t flag), then load /etc/pf.conf.backup. If the configuration is good, killing the process will prevent the rollback. rpfload will print out its own PID to stdout make it easier to do this, especially if it is run in the background.</p>
+
+<p>Another way to do this would be to use the -o flag, which will additionally overwrite /etc/pf.conf with the backup config if the timeout is reached without interruption. One possible utility of this would be so that you don't forget and end up rebooting with the broken /etc/pf.conf, which would be loaded on boot.</p>
+
+<p>If all you want to do is disable PF rather than load a backup config, you can do this with the -d flag:</p>
+
+<pre>
+<code>
+# rpfload -d -f /etc/pf.conf
+</code>
+</pre>
+
+<p>rpfload will also log what it does to syslog, so you can see which PF config was applied by checking /var/log/messages.</p>
+
+<p>There are valid criticisms. It may be unnecessary if you don't care about logging, switching configs, or other facy things. It is written in Perl, which some people hate. Worse, it was written in Perl by <i>me</i>, a non-Perl-programmer, so the code is not perfect. Doubtless you can think of others.</p>
+
+<p>But it solves one of my problems exactly how I wanted, has no external dependencies in OpenBSD, and I think I might even understand it. That's all I wanted. You can get it <a href="https://github.com/jsf0/rpfload">here</a></p>
+
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

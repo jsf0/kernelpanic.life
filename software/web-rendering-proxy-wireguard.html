@@ -1,0 +1,124 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>Web Rendering Proxy Server with Wireguard</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+<h2>Web Rendering Proxy Server with Wireguard</h2>
+<h3>8-May-2021</h3>
+
+<p>The modern web is a catastrophe, <a href="https://scholar.harvard.edu/files/mickens/files/towashitallaway.pdf">as we know</a>. Older computers increasingly find it harder and harder to handle the modern website's insatiable desire to hand you Javascript, popups, autoplaying videos, ads, malware, more Javascript, downloadable fonts, libraries, full size background images, cryptominers, and gifs.</p>
+
+<p>Web browsers used to be essentially just document viewers, and web pages were little more than documents written in a markup language (HTML) with some images here and there. The web browser today is almost an operating system. Or maybe it would be more accurate to say the operating system today is almost a <a href="https://www.google.com/chromebook/chrome-os/">web browser</a>? Either way, there is nothing driving the obsolescence of your computer faster than the demands of the modern web browser.</p>
+
+<p>Browsers such as Dillo, Netsurf, and Lynx are incredibly fast even on old hardware because they simply don't support Javascript, but this often leads to web pages that either don't work at all, or look nothing like what they are supposed to.</p> 
+
+<p>One clever way to deal with this problem is to run a modern web browser on a different machine to do the heavy rendering, then connect to that with a lightweight browser such as Dillo, Netsurf, or whatever you like to view it. This is what <a href="https://github.com/tenox7/wrp">Web Rendering Proxy</a> does. Essentially, it runs Chromium underneath to fetch and render the web page, and creates a GIF or PNG of that rendered page, with clickable elements for the links. Your old or lightweight browser then connects to this proxy to view the image. It works quite well.</p>
+
+<p>The only issue I have with this is that there is no security in the connection between your browser and the WRP server. This is fine if the server is on your local network, but it's a problem if you want to run it remotely, such as on a VPS, so that you can access it from anywhere.</p>
+
+<p>To solve this, I run WRP on a Vultr High Frequency VPS on OpenBSD, with a Wireguard tunnel securing the connection between my old laptops and the VPS. To simplify this, I have a script that will configure the VPS with all of the required packages, and set the configuration, which is below:</p>
+
+<pre>
+<code>
+#!/bin/sh
+# This script will configure an OpenBSD 6.8 or later
+# server with Wireguard and Web Rendering Proxy. It should be run as root.
+#
+# This script assumes the Wireguard server IP will be 10.1.1.1 and the
+# client (peer) IP will be 10.1.1.2. Adjust these as you desire.
+#
+# Once wireguard-tools is installed, generate the private key with `wg genkey`
+# Generate the public key with `echo privatekeygoeshere | wg pubkey`
+#
+# The private key will be placed in the /etc/wireguard/server.conf file we'll make.
+# The public key will need to be supplied to the peer.
+# Lastly, you'll need the peer's public key for that server.conf file too.
+######################################################################
+
+# Update existing packages, then install chromium and wireguard-tools
+pkg_add -u
+pkg_add chromium wireguard-tools
+
+# Download and install WRP binary
+ftp https://github.com/tenox7/wrp/releases/download/4.5.1/wrp-amd64-openbsd
+install -m 755 wrp-amd64-openbsd /usr/local/bin
+
+# Add a non-root user to run the WRP binary
+useradd wrpuser
+
+# Create wireguard interface. Modify the IP address as desired
+touch /etc/hostname.wg0
+cat <<EOF > /etc/hostname.wg0
+10.1.1.1 255.255.255.0
+!/usr/local/bin/wg setconf wg0 /etc/wireguard/server.conf
+EOF
+
+# Create wireguard conf directory and conf file. Allowed IP will be the client IP
+mkdir /etc/wireguard
+touch /etc/wireguard/server.conf
+cat <<EOF > /etc/wireguard/server.conf
+[Interface]
+PrivateKey = pasteyourserverprivatekey
+ListenPort = 51820
+
+[Peer]
+PublicKey = pasteyourclientpublickey
+AllowedIPs = 10.1.1.2/32
+EOF
+
+# Configure firewall
+
+cat <<EOF > /etc/pf.conf
+set skip on { lo, wg }
+int_ip = "10.0.0.0/8"
+
+block drop      # block stateless traffic
+pass in quick on egress proto tcp from any to egress:0 port 22
+pass in quick on egress proto udp from any to egress:0 port 51820
+pass in quick on 10.1.1.1 proto tcp from $int_ip to 10.1.1.1 port 80
+pass out
+
+block return in on ! lo0 proto tcp to port 6000:6010
+
+block return out log proto {tcp udp} user _pbuild
+EOF
+
+# Use AdGuard DNS for adblocking
+touch /etc/dhclient.conf
+echo 'prepend domain-name-servers 176.103.130.130;' >> /etc/dhclient.conf
+
+# Clean up
+rm wrp-amd64-openbsd
+echo 'Configuration done!'
+echo 'Run `wg genkey` and paste the output into the PrivateKey section of /etc/wireguard/server.conf'
+echo 'Run `echo privatekeygoeshere | wg pubkey` and provide the resulting public key to peer'
+echo 'Add the peer public key to the [Peer] section of /etc/wireguard/server.conf'
+echo 'Lastly, run `sh /etc/netstart` or reboot to apply all changes'
+</code>
+</pre>
+
+<p>The only things the script does not do is configure your Wireguard keys, or your client. But using this setup, you can have an encrypted connection to your WRP VPS and not worry about transmitting passwords in clear text.</p>
+
+<p>WRP in action rendering the full Macrumors forum in Dillo on a <a href="/hardware/titanium-powerbook-g4.html">titanium PowerBook G4</a>:</p>
+<img src="/img/wrp_wireguard.jpg" alt="Web Rendering Proxy with Dillo screenshot">
+
+<p>I found that a single CPU VPS handles the rendering side of things adequately, but a 2 CPU instance handles it better enough to be worth the extra cost if you are using this a lot.</p> 
+
+<p>The script above also lives on <a href="https://code.kernelpanic.life:3000/joe/wrpguard">code.kernelpanic.life</a> as well as <a href="https://github.com/jsf0/wrpguard">Github</a>.
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

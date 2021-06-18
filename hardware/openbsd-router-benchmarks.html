@@ -1,0 +1,258 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>OpenBSD 6.9 Router Benchmarks</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+
+<h2>OpenBSD 6.9 Router Benchmarks</h2>
+<h3>21-May-2021</h3>
+
+<img src="/img/openbsd-routers.jpg" alt="OpenBSD Routers">
+
+<p>I've been using OpenBSD for my home router/gateway for years, and have run it on a number of different types of hardware. I recently got Verizon's gigabit service which is advertised at up to 940 Mb/s download and 880 Mb/s upload speeds, so I decided to benchmark some of the routers I have laying around. The contestants are:</p>
+
+<ul>
+	<li><strong>Ubiquiti EdgeRouter Lite:</strong> dual core 500 Mhz Cavium Octeon, Cavium ethernet using cnmac driver</li>
+	<li><strong>PC Engines APU4:</strong> quad core 1 GHz AMD GX-412TC Jaguar, Intel i211AT ethernet with em driver</li>
+	<li><strong>Ubiquiti EdgeRouter 4:</strong> quad core 1 GHz Cavium Octeon, Cavium ethernet with cnmac driver</li>
+	<li><strong>Supermicro E300-8D:</strong> quad core 2.2 GHz Intel Xeon D-1518 (SMT disabled), Intel I210 ethernet with em driver</li>
+</ul>
+
+<p>All of these routers are running OpenBSD 6.9 and are set up exactly as described in the <a href="https://www.openbsd.org/faq/pf/example1.html">Building a Router</a> FAQ page. There are lots of tweaks people do for performance, but I did not test any of them. What you see in the guide is what you get. CPU frequency was set at the maximum via apmd, where applicable.</p>
+
+<p>Testing was done from a T14 running Ubuntu 20.04 with 3 runs at Speedtest.net using the Vultr speed test server. This is not perfect as it only tests web traffic, so smaller or larger packet sizes than what you find in web traffic are not tested, nor is UDP tested either. Since this is going to an external server outside my network, it also sends that traffic over other carriers, so some of this is at the mercy of the route. But this is not meant to be scientific, and probably represents how most people will use their router anyway.</p>
+
+<p>Results are below, (averaged over the 3 tests):</p>
+
+<ul>
+	<li>EdgeRouter Lite: <strong>114.63</strong> Mb/s download, <strong>106.74</strong> Mb/s upload</li>
+	<li>APU4: <strong>358.02</strong> Mb/s download, <strong>328.42</strong> Mb/s upload</li>
+	<li>EdgeRouter 4: <strong>462.23</strong> Mb/s download, <strong>411.59</strong> Mb/s upload</li>
+	<li>E300-8D: <strong>752.52</strong> Mb/s download, <strong>884.58</strong> Mb/s upload</li>
+</ul>
+
+<p>The EdgeRouter Lite has a small ASIC onboard for packet forwarding which is used by Ubiquiti's EdgeOS. OpenBSD does not use this at all, so all of this was done by the two 500 MHz cores. One interesting thing is that the EdgeRouter 4 was signifcantly faster than the APU4, beating it by about 100 Mb/s. Despite the fact that both have four 1 GHz cores, the Octeon apparently moves packets around better than the AMD Jaguar. The fastest in the list is unsurprisingly the Xeon powered Supermicro E300, and it likely can go faster, but the connection may have been the limitation here.</p>
+
+<p>I am currently using the Supermicro as my router, though my favorite device is the EdgeRouter 4 here for the best balance of speed and low power consumption. The E300's fans have a very whiny pitch to them that has made me relegate this machine to the basement. On the plus side, it has IPMI, and it is fast enough to be usable for other purposes.</p>
+
+<p><strong>Update:</strong> There was some criticism of using Speedtest.net as the test method, which I expected and I agree with it. I ran the following tests with iperf3 to see if there would be a difference. I did not test the Supermicro in this manner. iperf3 was running on the Supermicro in server mode, and the T14 laptop was connecting through the tested router to the iperf3 server on the Supermicro for all of these tests. These were with iperf3's default options.</p>
+
+<p>I also tried with and without the scrub and antispoof lines in pf.conf to see if that would make any difference. See below for the results:</p>
+
+<p>EdgeRouter Lite with scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.99, port 51479
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.99 port 50181
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  12.9 MBytes   108 Mbits/sec                  
+[  5]   1.00-2.00   sec  14.8 MBytes   124 Mbits/sec                  
+[  5]   2.00-3.00   sec  15.1 MBytes   127 Mbits/sec                  
+[  5]   3.00-4.00   sec  15.5 MBytes   130 Mbits/sec                  
+[  5]   4.00-5.00   sec  15.6 MBytes   131 Mbits/sec                  
+[  5]   5.00-6.00   sec  15.1 MBytes   126 Mbits/sec                  
+[  5]   6.00-7.00   sec  15.4 MBytes   129 Mbits/sec                  
+[  5]   7.00-8.00   sec  14.7 MBytes   123 Mbits/sec                  
+[  5]   8.00-9.00   sec  14.9 MBytes   125 Mbits/sec                  
+[  5]   8.00-9.00   sec  14.9 MBytes   125 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-9.00   sec   142 MBytes   133 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>EdgeRouter Lite without scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.99, port 62412
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.99 port 51770
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  10.5 MBytes  87.8 Mbits/sec                  
+[  5]   1.00-2.00   sec  15.6 MBytes   131 Mbits/sec                  
+[  5]   2.00-3.00   sec  16.5 MBytes   139 Mbits/sec                  
+[  5]   3.00-4.00   sec  16.6 MBytes   139 Mbits/sec                  
+[  5]   4.00-5.00   sec  16.6 MBytes   139 Mbits/sec                  
+[  5]   5.00-6.00   sec  17.3 MBytes   145 Mbits/sec                  
+[  5]   6.00-7.00   sec  16.0 MBytes   134 Mbits/sec                  
+[  5]   7.00-8.00   sec  18.2 MBytes   153 Mbits/sec                  
+[  5]   8.00-9.00   sec  17.9 MBytes   150 Mbits/sec                  
+[  5]   9.00-10.00  sec  17.0 MBytes   143 Mbits/sec                  
+[  5]  10.00-10.01  sec   177 KBytes   132 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.01  sec   162 MBytes   136 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>APU4 with scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.103, port 62063
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.103 port 58644
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  28.4 MBytes   238 Mbits/sec                  
+[  5]   1.00-2.00   sec  41.9 MBytes   351 Mbits/sec                  
+[  5]   2.00-3.00   sec  47.4 MBytes   397 Mbits/sec                  
+[  5]   3.00-4.00   sec  50.2 MBytes   421 Mbits/sec                  
+[  5]   4.00-5.00   sec  51.6 MBytes   433 Mbits/sec                  
+[  5]   5.00-6.00   sec  52.4 MBytes   439 Mbits/sec                  
+[  5]   6.00-7.00   sec  53.3 MBytes   447 Mbits/sec                  
+[  5]   7.00-8.00   sec  54.0 MBytes   453 Mbits/sec                  
+[  5]   8.00-9.00   sec  54.3 MBytes   456 Mbits/sec                  
+[  5]   9.00-10.00  sec  54.6 MBytes   458 Mbits/sec                  
+[  5]  10.00-10.00  sec  64.2 KBytes   451 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.00  sec   488 MBytes   409 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>APU4 without scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.103, port 60797
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.103 port 64446
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  35.2 MBytes   295 Mbits/sec                  
+[  5]   1.00-2.00   sec  45.1 MBytes   379 Mbits/sec                  
+[  5]   2.00-3.00   sec  49.9 MBytes   419 Mbits/sec                  
+[  5]   3.00-4.00   sec  51.6 MBytes   433 Mbits/sec                  
+[  5]   4.00-5.00   sec  53.6 MBytes   450 Mbits/sec                  
+[  5]   5.00-6.00   sec  52.4 MBytes   440 Mbits/sec                  
+[  5]   6.00-7.00   sec  55.9 MBytes   469 Mbits/sec                  
+[  5]   7.00-8.00   sec  56.6 MBytes   475 Mbits/sec                  
+[  5]   8.00-9.00   sec  57.0 MBytes   478 Mbits/sec                  
+[  5]   9.00-10.00  sec  57.3 MBytes   481 Mbits/sec                  
+[  5]  10.00-10.00  sec   245 KBytes   543 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.00  sec   515 MBytes   432 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>EdgeRouter 4 with scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.97, port 57379
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.97 port 54255
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  26.4 MBytes   222 Mbits/sec                  
+[  5]   1.00-2.00   sec  42.8 MBytes   359 Mbits/sec                  
+[  5]   2.00-3.00   sec  51.7 MBytes   434 Mbits/sec                  
+[  5]   3.00-4.00   sec  56.2 MBytes   472 Mbits/sec                  
+[  5]   4.00-5.00   sec  60.2 MBytes   505 Mbits/sec                  
+[  5]   5.00-6.00   sec  62.5 MBytes   524 Mbits/sec                  
+[  5]   6.00-7.00   sec  64.4 MBytes   540 Mbits/sec                  
+[  5]   7.00-8.00   sec  65.5 MBytes   549 Mbits/sec                  
+[  5]   8.00-9.00   sec  66.8 MBytes   560 Mbits/sec                  
+[  5]   9.00-10.00  sec  66.4 MBytes   557 Mbits/sec                  
+[  5]  10.00-10.00  sec   156 KBytes   515 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.00  sec   563 MBytes   472 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>EdgeRouter 4 without scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.97, port 60739
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.97 port 60797
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  25.0 MBytes   209 Mbits/sec                  
+[  5]   1.00-2.00   sec  42.7 MBytes   358 Mbits/sec                  
+[  5]   2.00-3.00   sec  54.5 MBytes   457 Mbits/sec                  
+[  5]   3.00-4.00   sec  60.4 MBytes   507 Mbits/sec                  
+[  5]   4.00-5.00   sec  64.7 MBytes   543 Mbits/sec                  
+[  5]   5.00-6.00   sec  68.1 MBytes   571 Mbits/sec                  
+[  5]   6.00-7.00   sec  69.3 MBytes   581 Mbits/sec                  
+[  5]   7.00-8.00   sec  71.1 MBytes   596 Mbits/sec                  
+[  5]   8.00-9.00   sec  72.2 MBytes   606 Mbits/sec                  
+[  5]   9.00-10.00  sec  72.8 MBytes   611 Mbits/sec                  
+[  5]  10.00-10.00  sec   158 KBytes   552 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.00  sec   601 MBytes   504 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>I also measured the power consumption of each of these from the wall at idle and under load:</p>
+
+<ul>
+	<li><strong>EdgeRouter Lite:</strong> 6.9 watts idle, 7.4 watts max</li>
+	<li><strong>APU4:</strong> 6.4 watts idle, 7.3 watts max</li>
+	<li><strong>EdgeRouter 4:</strong> 6.9 watts idle, 7.5 watts max</li>
+</ul> 
+
+<p>There was little discernible difference in power consumption between these, and they could be within the margin of error of the device I used to measure.</p>
+
+<p><strong>Update 11-June-2021</strong>: The APU4 was on an old BIOS when tested, which did not support boosting CPU core clock speed under load. This is a feature added in v4.9.0.2, and will boost to 1.4 GHz. I updated the BIOS to v4.13.06 and re-ran the tests on the APU4, which can be seen below (tested for 60 seconds with 6 second interval):</p>
+
+<pre>
+<code>
+Connecting to host 192.168.1.1, port 5201
+[  5] local 172.16.1.3 port 4631 connected to 192.168.1.1 port 5201
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-6.00   sec   349 MBytes   488 Mbits/sec                  
+[  5]   6.00-12.00  sec   422 MBytes   590 Mbits/sec                  
+[  5]  12.00-18.00  sec   425 MBytes   594 Mbits/sec                  
+[  5]  18.00-24.00  sec   425 MBytes   595 Mbits/sec                  
+[  5]  24.00-30.00  sec   425 MBytes   595 Mbits/sec                  
+[  5]  30.00-36.00  sec   425 MBytes   594 Mbits/sec                  
+[  5]  36.00-42.00  sec   425 MBytes   595 Mbits/sec                  
+[  5]  42.00-48.01  sec   427 MBytes   597 Mbits/sec                  
+[  5]  48.01-54.01  sec   424 MBytes   592 Mbits/sec                  
+[  5]  54.01-60.01  sec   425 MBytes   594 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-60.01  sec  4.08 GBytes   583 Mbits/sec                  sender
+[  5]   0.00-60.17  sec  4.08 GBytes   582 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>Without scrub and antispoof:</p>
+<pre>
+<code>
+Connecting to host 192.168.1.1, port 5201
+[  5] local 172.16.1.3 port 4336 connected to 192.168.1.1 port 5201
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-6.00   sec   387 MBytes   541 Mbits/sec                  
+[  5]   6.00-12.00  sec   476 MBytes   665 Mbits/sec                  
+[  5]  12.00-18.00  sec   482 MBytes   675 Mbits/sec                  
+[  5]  18.00-24.00  sec   484 MBytes   676 Mbits/sec                  
+[  5]  24.00-30.00  sec   482 MBytes   675 Mbits/sec                  
+[  5]  30.00-36.00  sec   483 MBytes   676 Mbits/sec                  
+[  5]  36.00-42.00  sec   481 MBytes   672 Mbits/sec                  
+[  5]  42.00-48.00  sec   480 MBytes   671 Mbits/sec                  
+[  5]  48.00-54.00  sec   480 MBytes   670 Mbits/sec                  
+[  5]  54.00-60.00  sec   469 MBytes   655 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-60.00  sec  4.59 GBytes   658 Mbits/sec                  sender
+[  5]   0.00-60.14  sec  4.59 GBytes   656 Mbits/sec                  receiver
+</code>
+</pre>
+
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

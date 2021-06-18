@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>OpenBSD 6.9 veb vs bridge benchmarks</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+
+<h2>OpenBSD 6.9 veb vs bridge Benchmarks</h2>
+<h3>29-May-2021</h3>
+
+<p>OpenBSD recently introduced a new virtual ethernet bridge, called <a href="https://marc.info/?l=openbsd-tech&m=161335364329307">veb(4)</a> that can replace bridge(4) for use as a layer 2 switch. David Gwynne's email introducing veb(4) explains the differences far better than I could, but I was interested in testing the forwarding performance of veb(4) when compared with bridge(4).</p>
+
+<p>For testing this, I used the EdgeRouter 4, running OpenBSD 6.9. It has 4 cores, and performance is comparable to the APU4 from what I have seen when doing <a href="/hardware/openbsd-router-benchmarks.html">router benchmarks</a>. I gave it a very basic configuration, which can be seen below:</p>
+
+<p>/etc/hostname.bridge0</p>
+<pre>
+<code>
+add cnmac0
+add cnmac1
+add cnmac2
+add cnmac3
+up
+</code>
+</pre>
+
+<p>/etc/hostname.cnmac*</p>
+
+<pre>
+<code>
+up
+</code>
+</pre>
+
+<p>/etc/pf.conf</p>
+
+<pre>
+<code>
+set skip on lo0
+pass
+</code>
+</pre>
+
+<p>The veb(4) configuration was exactly the same, with only /etc/hostname.bridge0 being renamed to /etc/hostname.veb0</p>
+
+<p>I used iperf3 for the test, on an X250 running DragonFly BSD 6.0 and a T14 running Ubuntu 20.04. First, I tested the two connected directly to each other via ethernet, with no switch between them:</p>
+
+<pre>
+<code>
+Accepted connection from 172.16.1.2, port 4071
+[  5] local 172.16.1.3 port 5201 connected to 172.16.1.2 port 4367
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  93.3 MBytes   782 Mbits/sec                  
+[  5]   1.00-2.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   2.00-3.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   3.00-4.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   4.00-5.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   5.00-6.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   6.00-7.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   7.00-8.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   8.00-9.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   9.00-10.00  sec   111 MBytes   934 Mbits/sec                  
+[  5]  10.00-10.15  sec  16.3 MBytes   934 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.15  sec  1.09 GBytes   919 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>As they both have gigabit ports, the above is the maximum expected for this test.</p>
+
+<p>First up was bridge(4):</p>
+
+<pre>
+<code>
+Accepted connection from 172.16.1.2, port 3498
+[  5] local 172.16.1.3 port 5201 connected to 172.16.1.2 port 3600
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  37.2 MBytes   312 Mbits/sec                  
+[  5]   1.00-2.00   sec  52.6 MBytes   441 Mbits/sec                  
+[  5]   2.00-3.00   sec  50.8 MBytes   426 Mbits/sec                  
+[  5]   3.00-4.00   sec  50.1 MBytes   420 Mbits/sec                  
+[  5]   4.00-5.00   sec  51.2 MBytes   430 Mbits/sec                  
+[  5]   5.00-6.00   sec  50.3 MBytes   422 Mbits/sec                  
+[  5]   6.00-7.00   sec  50.7 MBytes   425 Mbits/sec                  
+[  5]   7.00-8.00   sec  51.4 MBytes   431 Mbits/sec                  
+[  5]   8.00-9.00   sec  51.4 MBytes   431 Mbits/sec                  
+[  5]   9.00-10.00  sec  50.9 MBytes   427 Mbits/sec                  
+[  5]  10.00-10.16  sec  8.39 MBytes   441 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.16  sec   505 MBytes   417 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>During the test, I was watching the output of top(1) on the EdgeRouter and this test resulted in 99% utilization of 1 core on the EdgeRouter, while the other 3 remained idle.</p>
+
+<p>On to veb(4):</p>
+
+<pre>
+<code>
+Accepted connection from 172.16.1.2, port 2069
+[  5] local 172.16.1.3 port 5201 connected to 172.16.1.2 port 4958
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  80.9 MBytes   679 Mbits/sec                  
+[  5]   1.00-2.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   2.00-3.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   3.00-4.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   4.00-5.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   5.00-6.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   6.00-7.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   7.00-8.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   8.00-9.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   9.00-10.00  sec   111 MBytes   934 Mbits/sec                  
+[  5]  10.00-10.13  sec  14.0 MBytes   934 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.13  sec  1.07 GBytes   909 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>Without going through pf, veb(4) is able to forward traffic between the two laptops at essentially the same rate as a direct connection. 2 cores were used at about 30-40% utilization on each core with veb(4), in contrast with the single core at 99% utilization when tested with bridge(4).</p>
+
+<p>Running the test again with link1 set in hostname.veb0 to force traffic through pf leads to the following:</p>
+
+<pre>
+<code>
+Accepted connection from 172.16.1.2, port 4527
+[  5] local 172.16.1.3 port 5201 connected to 172.16.1.2 port 3978
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  57.4 MBytes   481 Mbits/sec                  
+[  5]   1.00-2.00   sec  80.8 MBytes   678 Mbits/sec                  
+[  5]   2.00-3.00   sec  81.5 MBytes   684 Mbits/sec                  
+[  5]   3.00-4.00   sec  81.0 MBytes   679 Mbits/sec                  
+[  5]   4.00-5.00   sec  81.2 MBytes   681 Mbits/sec                  
+[  5]   5.00-6.00   sec  80.4 MBytes   674 Mbits/sec                  
+[  5]   6.00-7.00   sec  80.1 MBytes   672 Mbits/sec                  
+[  5]   7.00-8.00   sec  80.2 MBytes   673 Mbits/sec                  
+[  5]   8.00-9.00   sec  73.5 MBytes   616 Mbits/sec                  
+[  5]   9.00-10.00  sec  71.8 MBytes   603 Mbits/sec                  
+[  5]  10.00-10.14  sec  11.4 MBytes   677 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.14  sec   779 MBytes   645 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>This is a pretty encouraging result, and while this configuration was very simple, the performance gap is such that if veb(4) does what you want, it makes sense to use it instead of bridge(4), assuming you are comfortable using much newer and less tested code. It is also possible that veb(4) can go faster than this, but unfortunately I can only test up to gigabit with my hardware. A better test would be to test actual packets per second, and I may redo this eventually to see what kind of results that gets.</p>
+
+<p>Update: /u/Kernigh pointed out that veb(4) was not sending traffic through pf in the tests above, whereas bridge(4) was. This was fixed and the test run again.</p>
+
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

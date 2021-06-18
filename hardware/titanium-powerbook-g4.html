@@ -1,0 +1,76 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>The Titanium PowerBook G4</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+
+<h2>The Titanium PowerBook G4</h2>
+<h3>15-April-2021</h3>
+
+<img src="/img/titanium-powerbook-g4-scaled.jpg" alt="The Titanium PowerBook G4">
+
+<p><strong>Year:</strong> 2002</p>
+<p><strong>CPU:</strong> 1.0 GHz PowerPC 7455</p>
+<p><strong>Graphics:</strong> Mobility Radeon 9000 64 MB</p>
+<p><strong>RAM:</strong> 512 MB PC133</p>
+<p><strong>Storage:</strong> 60 GB 4200 RPM 2.5" IDE HDD</p>
+<p><strong>"But can it run Chrome?":</strong> No </p>
+
+<p>The last titanium PowerBook, released in 2002, is my favorite laptop. It is still a modern design, with thin bezels and a relatively streamlined profile, but was built when you were still allowed to put usable ports on a laptop. The black keyboard in the silvery chassis stands out, and aesthetically, is a design Apple would of course later return to many years later with the unibody laptops. It is fantastic to type with it. The ports are all at the rear, so cables are nicely out of your way, and Apple's Brave New World of dongle hell is blissfully absent. Network connectivity includes a gigabit capable ethernet port (using the gem driver in OpenBSD), a 56k modem, and an 802.11b wireless card (using the wi driver).</p>
+
+<p>I've been running OpenBSD/macppc on this and am perfectly happy with the performance. The wireless card is usable with the wi driver, though it cannot handle WPA or WPA2, so you may want to use a USB wireless device if you aren't willing to run an open or WEP wireless network. Graphics acceleration is provided with radeondrm, and works flawlessly. The battery in this is toast, so I have no idea about battery life. Probably not very good, but apmd does work to control the CPU speed.</p> 
+
+<p>The keyboard pops off easily by sliding two tabs towards you and lifting the top edge. This exposes part of the logic board, and critically, the PMU reset button in the upper right. These will downclock to 667 MHz if they do not detect a battery, and I have found that I need to reset the PMU in order for this to reliably occur. I'm sure the PMU battery is long dead  and is the likely culprit here, but resetting the PMU before booting does yield full 1.0 GHz performance.</p>
+
+<p>Besides the usual OpenFirmware settings changes, there is nothing special about installing OpenBSD on this, except that if you want to use disk encryption, there is no support for booting softraid-encrypted volumes on macppc. I made a separate encrypted softraid partition during install that is decrypted and mounted at /home/joe on every boot. The following lines in /etc/rc.securelevel do the job:</p>
+<pre>
+<code>
+bioctl -c C -l /dev/wd0m softraid0
+mount /dev/sd0a /home/joe
+</code>
+</pre>
+
+<p>Various desktop envrionments and window managers are available, but I use cwm on everything and refuse to use anything else. For this laptop, it is blazing fast and I am so used to my shortcuts that I don't want to learn any other system. That said, you can install and run something like XFCE if you choose; it's only a pkg_add away.</p>
+
+<p>For graphical web browsing, your best bet is probably Dillo or Netsurf. Dillo is quick, but does not render web pages as well as Netsurf. Lynx and other console-only browsers work great, as expected. For email, I use mutt, but claws-mail works as well if you prefer fancy graphics. The collection of macppc packages for OpenBSD is tending to dwindle, but there are many packages that will cover the basic uses.</p>
+
+<p>Playing audio is possible with mplayer, and the speakers are significantly better than those on the 2014 MacBook Pro. Progress isn't always upward.</p>
+
+<p>One annoying thing about this laptop is the single button trackpad. In OpenBSD, this only provides left click functionality, so right clicking or middle clicking is impossible. For pasting text in X11, middle clicking is essential. Fortunately, there is a workaround. I use xmodmap(1) to remap the F10 and F11 keys for middle click and right click, respectively.</p>
+
+<p>In ~/.xmodmaprc, add the following lines:</p>
+<pre>
+<code>
+keycode 76 = Pointer_Button2
+keycode 95 = Pointer_Button3
+</code>
+</pre>
+
+<p>Then, run xmodmap(1) and xkbset(1) to enable:</p>
+<pre>
+<code>
+$ xmodmap ~/.xmodmaprc
+$ xkbset m
+</code>
+</pre>
+
+<p>This could be added to a script and run on xenodm startup, or run manually if you prefer.</p>
+
+<p>So, what can you do with this in 2021? Well I have no idea about the state of OS X or Linux on these, because I have never run either. With OpenBSD at least, if you are reasonable and are willing to forego Javascript browsers, it can do most tasks. You won't be very happy if you expect it to run Firefox or Chrome and watch Youtube, and software selection is more limited. Simple web browsing, email, sysadmin tasks, development, and the like are feasible though, and this entire website was written on this laptop wtihout it being a burden. If you're willing to put in some effort, they're great laptops.</p>
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

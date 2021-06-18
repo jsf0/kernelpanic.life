@@ -1,0 +1,62 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>Varnish on OpenBSD 6.8 with httpd</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+<h2>Varnish on OpenBSD 6.8 with httpd</h2>
+<h3>09-April-2021</h3>
+<p>I spent today setting up the server for this website and decided to use Varnish as an HTTP cache with OpenBSD's built-in web server, httpd. The internet has very little information about using Varnish on OpenBSD specifically, so this post can serve to document the steps. For a simple site like this, Varnish is quite unnecessary and kind of ridiculous, but it is fun to play with it.</p>
+
+<p>Setting up httpd is easy, and it can be made even easier by copying the example configuration file /etc/examples/httpd.conf to /etc. For use with Varnish, I have httpd listening on 127.0.0.1:8080. Varnish will listen on the external IP on port 80, and use 127.0.0.1:8080 for its backend. The full config for httpd can be found below:</p>
+
+<pre><code>server "kernelpanic.life" {
+	listen on 127.0.0.1 port 8080
+	root "/htdocs/kernelpanic"
+}
+</code></pre>
+<p>That's all I need here. Of course it will need to be enabled:</p> 
+<pre><code># rcctl enable httpd</code></pre>
+<p>Varnish is available as a package, and can be installed and enabled easily:</p>
+
+<pre><code># pkg_add varnish
+# rcctl enable varnishd
+</code></pre>
+
+<p>I'm not bothering with a config file for this, but this means Varnish will need some flags set for the daemon:</p>
+<pre><code># rcctl set varnishd flags "-a :80 -b 127.0.0.1:8080 -s malloc,256m -T none"</code></pre>
+<p>That's pretty much all you need to get it working. Reboot or start the services manually, and incoming requests will hit Varnish, which will pull your website files from the httpd server running at 127.0.0.1:8080.</p>
+
+<p>By default, this won't do much logging of client requests beyond /var/www/logs/access.log but this file will only show requests from Varnish, not clients. If you want Varnish to log client requests, you need to run the varnishncsa binary. I'm starting this with the following line in /etc/rc.local:</p>
+<pre><code>varnishncsa -D -w /var/varnish/kernelpanic.life/access.log</code></pre>
+<p>This will log all requests that hit varnishd to the access.log file. </p>
+<p>So does it make a difference? Typically Varnish is used to cache dynamically generated content that does not change often, saving expensive database lookups and PHP operations. For a site that like this that is already just static HTML, it may not make a difference. To find out, I tested this post's page with <a href="https://loader.io">loader.io</a> both with and without Varnish to see if it made a difference. Each test used 10,000 simultaneous connections over 1 minute, and each test was run twice.</p>
+<p>Without Varnish (just OpenBSD's httpd, with the config file above):</p>
+<ul>
+	<li>Average response time: 66 milliseconds</li>
+	<li>Minimum response time: 33 milliseconds</li>
+	<li>Maximum response time: 102 milliseconds</li>
+</ul>
+<p>With Varnish:</p>
+<ul>
+	<li>Average response time: 33 milliseconds</li>
+	<li>Minimum response time: 33 milliseconds</li>
+	<li>Maximum response time: 70 milliseconds</li>
+</ul>
+<p>Even for this very basic static HTML site, Varnish cut the average response times in half under a heavy load. That's pretty good, and probably is limited more by the network connection from the testers to the server more than it is by the server itself.</p> 
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

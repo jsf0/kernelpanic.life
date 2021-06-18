@@ -1,0 +1,52 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>The DEC AlphaStation 250 4/266</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+
+<h2>The DEC AlphaStation 250 4/266</h2>
+<h3>17-April-2021</h3>
+
+<img src="/img/dec-alphastation-scaled.jpg" alt="The DEC AlphaStation 250 4/266">
+
+<p><strong>Year:</strong> 1995</p>
+<p><strong>CPU:</strong> 266 MHz Alpha 21064A</p>
+<p><strong>Graphics:</strong> DECchip 21030, 1280x1024, 8 bpp</p>
+<p><strong>RAM:</strong> 128 MB</p>
+<p><strong>Storage:</strong> IBM DDRS-34560 4.5GB 7.2K RPM 3.5" 50-Pin SCSI hard drive</p>
+<p><strong>"But can it run Chrome?":</strong> Of couse not </p>
+
+<p>In a society that constantly implores us to upgrade to the newest thing, it can be refreshing to see how much you can do without. One of the better ways to do that is to use an old computer.</p>
+
+<p>The DEC AlphaStation would certainly qualify as old. This particular model, the 250 4/266, was built around 1995 by the struggling, but once-giant Digital Equipment Corporation only a few years before the company's corpse was bought by Compaq in 1998, then Hewlett Packard in 2002. I have always had a fondness for the last DEC machines because they were made right before the world standardized on the x86 architecture and Windows as the default choice for workstations.</p>
+
+<p>In contrast, the AlphaStation runs DEC's 266 MHz, 64 bit Alpha-based DECchip, and was offered with the customer's choice of Digital Unix (later OSF/1), VMS, or Windows NT, which interestingly was once available for the Alpha architecture. The cost was fairly enormous, with this machine's configuration having an MSRP of over $19K in 1995 dollars.</p>
+
+<p>This particular machine was originally sold to Stanford University's library, and came to me with OSF/1 installed. Some of Stanford's original configuration files were even present on the drive when I got this, which was quite cool, but the drive made such a whirring noise that it was clearly not going to run for much longer. Sadly the bearing failed shortly thereafter, and I replaced it with an IBM drive and installed OpenBSD/alpha.</p>
+
+<p>The OSF/1 install did include X11, and the machine has a video card that is detected and supported by the tga driver in OpenBSD, but I could not get X11 to work with OSF/1, and it is apparently broken on OpenBSD/alpha, so I paired the AlphaStation with a VT220. The VT220 itself was made in 1985 and is the amber version, which I greatly prefer to the green models also offered. This came without a keyboard, but I found a DEC LK402-AA keyboard on eBay sealed in its original box, happily paid way too much for it, and now have a brand new, old keyboard to use with the terminal.</p>
+
+<p>The keyboard offers kind of an odd typing experience. These have flat steel leaf springs under the keys, with a membrane underneath that to register the keypress. Since this keyboard was never used, the keys can be quite stiff. A built-in speaker chirps on each keystroke, and an audible bell hollers at you every time the terminal bell is triggered. It's fantastic. The layout is a Unix oriented version of the LK201 keyboard, and takes some getting used to. I have not been able to figure out how to change the layout in OpenBSD, so many of the extra functions do not work, and some of the regular keys (like Esc) do not register correctly. In vi, this is annoying, but can be worked around by pressing Ctrl-[ to effectively hit Esc and change modes.</p>
+
+<p>Installing OpenBSD is not much different than on any other system. It will take quite some time to complete, but it works fine. I did not try anything fancy, like disk encryption or RAID. Ethernet is supported and works reliably, so in theory one could do anything they would do through SSH on this machine. There are no prebuilt packages, so if you want to install additional software, compiling from ports is the only option. This is not a fast process. I compiled lynx so that I could have a web browser but didn't feel the need to compile much else after seeing how long that took.</p>
+
+<p>One other issue with this machine is that the 128 MB of RAM is not enough for KARL to relink the kernel. This means that on every boot, I have to wait about 10-15 minutes for KARL to relink the kernel, furiously swapping to the hard drive as it does this, before the machine is usable. I was able to find an additional 128 MB of RAM, and theoretically this board can handle 256 MB, but space is extremely tight between the RAM sticks, and I am uneasy with trying to force anything. Rather than break something expensive, I will live with the RAM limitation for now.</p>
+
+<p>So what can you do with this? Anything that can work entirely on a console and does not require extra software outside of the base system will work the same as it does anywhere else, only slower. Text editing with vi is no problem, web browsing with lynx is relatively smooth, and tmux makes dealing with a VT220 much more functional. This whole post was written on the AlphaStation, through SSH. I also use it for C development to find inefficient code (it is very good at this!) or code that is not portable between architectures. It's fun to see how much it can do.</p>
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

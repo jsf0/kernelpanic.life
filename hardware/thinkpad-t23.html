@@ -1,0 +1,91 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>The IBM ThinkPad T23</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+
+<h2>The IBM ThinkPad T23</h2>
+<h3>07-May-2021</h3>
+
+<img src="/img/thinkpad-t23.jpg" alt="The IBM ThinkPad T23">
+
+<p><strong>Year:</strong> 2002</p>
+<p><strong>CPU:</strong> 1.13 GHz Pentium III Mobile</p>
+<p><strong>Graphics:</strong> 16 MB S3 Super Savage IX</p>
+<p><strong>RAM:</strong> 1024 MB PC133</p>
+<p><strong>Storage:</strong> 40 GB Hitachi HTS541640J9AT00</p>
+<p><strong>"But can it run Chrome?":</strong> No </p>
+
+<p>For many years, if you closed your eyes and imagined "laptop", I bet you'd think of something pretty much exactly like the T23: an enormous, all black, 4:3 shaped brick with a million ports. I like to think that anyone working at IBM in the early 2000s who mentioned the word "aesthetics" would have been fired on the spot. Yet somehow their ThinkPad line <i>did</i> look good, and the T23 is the very essence of that iconic ThinkPad design.</p>
+
+<p>This is not a thin or light laptop, and by today's standards, not a fast one. But it is uncannily reliable. This particular T23 is nearly 20 years old and the only non-original parts are the hard drive (replaced in 2015 when the original died) and the TrackPoint nub, which I finally replaced a year or two ago after the original had worn down almost all the way through the material. The RAM, keyboard, display panel, motherboard, and case are all still working just fine. There are some scratches on the lid, but no cracks anywhere.</p>
+
+<p>OpenBSD support is quite good. The Intel Pro/100 ethernet port is powered by the fxp driver. There is no wireless card in this laptop, so you can either run wireless off a USB or use a supported PCMCIA wireless card. You only get 2 USB 1.1 ports, and USB wireless is not the greatest, but a nano USB wireless adapter sits nicely out of the way, while a PCMCIA card will stick out about an inch or two from the slot.</p>
+
+<p>Ports are plentiful, and mostly at the back of the laptop, which keeps cables out of your way. It includes a DB-9 serial port, which is something I actually use rather often. Despite the existence of USB-to-Serial cables, I have found that a real serial port is sometimes the most reliable option, and the T23 is worth keeping around just for that.</p>
+
+<p>Graphics are provided by the built in 16 MB S3 Super Savage IX. This actually has DRM support in OpenBSD, but you won't like it. Even moving an xterm around is hilariously slow, so you are better off using Vesa instead of the savage driver in /etc/X11/xorg.conf. While you're in here, you will also want to set up middle button scrolling with the TrackPoint. My full xorg.conf with both of these configs is below:</p>
+
+<pre>
+<code>
+Section "InputDevice"
+        Identifier      "Trackpoint"
+        Driver          "mouse"
+        Option          "Protocol"      "Auto"
+        Option          "Device"        "/dev/wsmouse"
+EndSection
+
+Section "InputClass"
+        Identifier      "Trackpoint"
+        MatchIsPointer  "True"
+        Option  "Emulate3Buttons"       "False"
+        Option  "EmulateWheel"  "True"
+        Option  "EmulateWheelButton"    "2"
+        Option  "XAxisMapping"  "6 7"
+        Option  "YAxisMapping"  "4 5"
+EndSection
+
+Section "Device"
+        Identifier      "gfxcard"
+        Driver          "vesa"
+EndSection
+
+Section "Screen"
+        Identifier      "Screen 0"
+        Device          "gfxcard"
+        Monitor         "Monitor 0"
+        DefaultDepth    16
+EndSection
+
+Section "Monitor"
+        Identifier      "Monitor 0"
+        Option          "DPMS" "Disable"
+EndSection
+</code>
+</pre>
+
+<p>This setup has worked well for me and graphics are smooth on vesa, though 3D accleration is not something I have tried or really care about on this machine.</p>
+
+<p>Web browsers are in a similar situation as with the <a href="/hardware/titanium-powerbook-g4.html">PowerBook G4</a> at the moment, despite the fact that various Javascript capable browsers exist for the i386 architecture. The Pentium III does not have SSE2 support, which means any of the standard big browsers like Firefox, Chromium, or Otter will not work on this, not that they would be a lot of fun on such an old machine. Instead, Netsurf and Dillo are my choice for graphical browsing, and lynx is a perfectly viable option for console web usage.</p>
+
+<Other software I use is similar to the PowerBook as well. Mplayer for music, wordgrinder for word processing, mutt for email (console), or claws-mail for a graphical email client. Xpdf reads PDF files nicely if I'm unfortunate enough to have to deal with a PDF.</p>
+
+<p>Battery life on this is about 2 hours, which is shockingly good for a machine this old. The battery holds 30 Wh out of its original 38 Wh, and apmd works to control the CPU frequency. It is actually possible to use this as a laptop on battery power only in its current state. I used to take this to Rutgers and use it as my main laptop circa 2014-2015, which always elicited comments and was great fun.</p>
+
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>
