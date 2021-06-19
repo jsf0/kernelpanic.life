@@ -1,0 +1,242 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>High Availability With OpenBGPD on OpenBSD 6.9</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a>
+<hr>
+<h2>High Availability With OpenBGPD on OpenBSD 6.9</h2>
+<h3>19-June-2021</h3>
+
+<p>Before beginning, it is important to note that this post does not replace any documentation. My setup below is the minimum necessary to get this going, but there are a lot of factors I won't cover. Check the latest docs, especially if you are reading this long in The Future.</p>
+
+<p>I host this site on <a href="https://www.vultr.com">Vultr</a> and one of the platform's features is BGP, which can be used with a floating IP address to achieve better availability. The basic idea is to have multiple identical instances announcing the same floating IP to Vultr's infrastructure via BGP, and have your service configured on each and listening on that floating IP. Vultr will route traffic via anycast to that announced floating IP. If one or more instances go down, traffic will continue flowing to the other instances still announcing it, ensuring that your service remains available.</p>
+
+<p>If you have your own IP space (/24 minimum) and ASN, you can announce your IP(s) from different datacenters, so even if an entire datacenter is down, your service will still be reachable. If you do not have your own IP address block and ASN, you can request an ASN from Vultr and use a Vultr reserved IP as your floating IP. Doing it this way will only work for instances within the same datcenter, but still provides redundancy should one or more of your instances go dark. One immediate advantage is that this allows you to upgrade and reboot an instance without disrupting reachability.</p>
+
+<p>Vultr has an excellent <a href="https://www.vultr.com/docs/high-availability-on-vultr-with-floating-ip-and-bgp">guide</a> for doing this with Linux using BIRD 1.6. It is worth reading in full, even if you are not using Linux or BIRD. If you want though, you can use BIRD on OpenBSD pretty much exactly as in that guide, though obviously using ifconfig instead of the Linux ip commands to setup the interfaces, and using lo1 instead of dummy1. This post will focus on OpenBGPD because it is in the base system, but I have used BIRD on OpenBSD to accomplish this and it works fine.</p>
+
+<p>To get started, open a ticket with Vultr and request that private BGP be enabled for your account. Once that is done, you can click on any instance and then click on the BGP tab to see your ASN and password. You'll also need a <a href="https://www.vultr.com/docs/vultr-reserved-ips">reserved IP</a> in the same region as the instances you want to use to announce it. This IP should not be attached to any instance; just reserve it and leave it.</p>
+
+<p>Whether you are using BIRD or OpenBGPD, on OpenBSD it is necessary to enable IP forwarding for this setup to work:</p>
+
+<pre>
+<code>
+# sysctl net.inet.ip.forwarding=1
+</code>
+</pre>
+
+<p>This can be enabled on boot by placing the following line in /etc/sysctl.conf</p>
+
+<pre>
+<code>
+net.inet.ip.forwarding=1
+</code>
+</pre>
+
+<p>For this example, we'll pretend that 8.9.8.9/32 is the reserved IP we'll be announcing. Create a new loopback interface and give it that IP:</p>
+
+<pre>
+<code>
+# ifconfig lo1 create
+# ifconfig lo1 inet 8.9.8.9/32
+# ifconfig lo1 up
+</code>
+</pre>
+
+<p>Test by trying to ping 8.9.8.9 from the same instance, which should work. Make this persistent by creating /etc/hostname.lo1 with the following:</p>
+
+<pre>
+<code>
+inet 8.9.8.9/32
+up
+</code>
+</pre>
+
+<p>I took the example bgpd.conf file from /etc/examples and modified it slightly. While the file is verbose, most of the options here don't need to be changed for a very simple setup like this. The full config I'm running can be found below:</p>
+
+<pre>
+<code>
+# define our own ASN as a macro
+# This ASN is an example; yours will be found in the BGP tab of any Vultr instance
+ASN="4000000000"
+
+# Password assigned to your account to use with Vultr neighbor, also found on the BGP tab
+PASSWORD="hunter2"
+
+# public IP of this particular instance
+INSTANCE_IP="1.2.3.4"
+
+# reserved IP that each instance will announce
+FLOATING_IP="8.9.8.9/32"
+
+# global configuration
+AS $ASN
+router-id $INSTANCE_IP
+
+# list of networks that may be originated by our ASN
+prefix-set mynetworks {
+	$FLOATING_IP
+}
+
+include "/var/db/rpki-client/openbgpd"
+
+# define bogon prefixes which should not be part of the DFZ
+prefix-set bogons {
+	0.0.0.0/8 or-longer		# 'this' network [RFC1122]
+	10.0.0.0/8 or-longer		# private space [RFC1918]
+	100.64.0.0/10 or-longer		# CGN Shared [RFC6598]
+	127.0.0.0/8 or-longer		# localhost [RFC1122]
+	169.254.0.0/16 or-longer	# link local [RFC3927]
+	172.16.0.0/12 or-longer		# private space [RFC1918]
+	192.0.2.0/24 or-longer		# TEST-NET-1 [RFC5737]
+	192.88.99.0/24 or-longer	# 6to4 anycast relay [RFC7526]
+	192.168.0.0/16 or-longer	# private space [RFC1918]
+	198.18.0.0/15 or-longer		# benchmarking [RFC2544]
+	198.51.100.0/24 or-longer	# TEST-NET-2 [RFC5737]
+	203.0.113.0/24 or-longer	# TEST-NET-3 [RFC5737]
+	224.0.0.0/4 or-longer		# multicast
+	240.0.0.0/4 or-longer		# reserved for future use
+	::/8 or-longer			# RFC 4291 IPv4-compatible, loopback, et al
+	0100::/64 or-longer		# Discard-Only [RFC6666]
+	2001:2::/48 or-longer		# BMWG [RFC5180]
+	2001:10::/28 or-longer		# ORCHID [RFC4843]
+	2001:db8::/32 or-longer		# docu range [RFC3849]
+	2002::/16 or-longer		# 6to4 anycast relay [RFC7526]
+	3ffe::/16 or-longer		# old 6bone
+	fc00::/7 or-longer		# unique local unicast
+	fe80::/10 or-longer		# link local unicast
+	fec0::/10 or-longer		# old site local unicast
+	ff00::/8 or-longer		# multicast
+}
+
+# Generate routes for the networks our ASN will originate.
+# The communities (read 'tags') are later used to match on what
+# is announced to EBGP neighbors
+network prefix-set mynetworks set large-community $ASN:1:1
+
+# upstream providers
+group "upstreams" {
+	neighbor 169.254.169.254 {
+		remote-as 64515
+		descr "Vultr"
+		announce IPv4 unicast
+		tcp md5sig password $PASSWORD
+		multihop 2
+		local-address $INSTANCE_IP
+	}
+}
+
+### for simple BGP setups, no editing below this line is required ###
+
+# Outbound EBGP: only allow self originated networks to ebgp peers
+# Don't leak any routes from upstream or peering sessions. This is done
+# by checking for routes that are tagged with the large-community $ASN:1:1
+allow to ebgp prefix-set mynetworks large-community $ASN:1:1
+
+# deny more-specifics of our own originated prefixes
+deny quick from ebgp prefix-set mynetworks or-longer
+
+# IBGP: allow all updates to and from our IBGP neighbors
+allow from ibgp
+allow to ibgp
+
+# Scrub normal and large communities relevant to our ASN from EBGP neighbors
+# https://tools.ietf.org/html/rfc7454#section-11
+match from ebgp set { large-community delete $ASN:*:* }
+
+# filter out prefixes longer than 24 or shorter than 8 bits for IPv4
+# and longer than 48 or shorter than 16 bits for IPv6.
+allow from any inet prefixlen 8 - 24
+allow from any inet6 prefixlen 16 - 48
+
+# Honor requests to gracefully shutdown BGP sessions
+# https://tools.ietf.org/html/rfc8326
+match from any community GRACEFUL_SHUTDOWN set { localpref 0 }
+
+deny quick from any prefix-set bogons
+
+# deny RPKI invalid, built by rpki-client(8), see root crontab
+deny quick from ebgp ovs invalid
+
+# filter bogon AS numbers
+# AS_TRANS (23456) is not supposed to show up in any path and indicates a
+# misconfiguration. Additionally Private or Reserved ASNs have no place in
+# the public DFZ. https://www.iana.org/assignments/as-numbers/as-numbers.xhtml
+deny quick from any AS 23456
+deny quick from any AS 64496 - 131071
+deny quick from any AS 4200000000 - 4294967295
+
+# filter out too long paths
+deny from any max-as-len 100
+</code>
+</pre> 
+
+<p>There is quite a lot to this file, but the comments explain what is going on. The ASN is your private ASN found on the BGP tab of your instance. The password (hunter2 in this example) will be found there as well. INSTANCE_IP should be changed on each instance that will be part of this group. The FLOATING_IP will remain the same on all instances, because we want everything annoucing one IP address.</p>
+
+<p>We're only announcing that floating IP, and our only neighbor is Vultr. The neighbor section will configure that session with our password. The rest of the file is essentially just the default rules, which filter some incorrect ASNs and prefixes. You could get more or less aggressive here if you like. I'm just leaving it as-is.</p>
+
+<p>It's a good idea to test this file for validity:</p>
+
+<pre>
+<code>
+# bgpd -n
+</code>
+</pre>
+
+<p>If the file's syntax is good, you can enable bgpd and start it:</p>
+
+<pre>
+<code>
+# rcctl enable bgpd
+# rcctl start bgpd
+</code>
+</pre>
+
+<p>You can use bgpctl to view information about your session. There are a lot of things it can do, but I like to do a quick check to see if everything looks correct and that we have a session:</p>
+
+<pre>
+<code>
+# bgpctl show summary
+</code>
+</pre>
+
+<p>You should get something like this if everything is working:</p>
+
+<pre>
+<code>
+# bgpctl show summary                                                                                             
+Neighbor                   AS    MsgRcvd    MsgSent  OutQ Up/Down  State/PrfRcvd
+Vultr                   64515     137169         64     0 00:30:18 832571
+</code>
+</pre>
+
+<p>Next, try to ping 8.9.8.9 from outside the instance. If everything was setup correctly, this should work. If it does, you can proceed to do the same configuration on your other instances, just remembering to change the INSTANCE_IP variable in /etc/bgpd.conf to match that instance's public IP.</p>
+
+<p>Once you have a couple instances with established BGP sessions, try pinging the floating IP from outside. You can shut down and reboot instances at will and the pings should all go through as long as at least one of the instances is up. I like to run tcpdump on each instance while pinging the IP from home to see how the traffic flow changes while knocking instances out.</p>
+
+<p>Traffic will be routed to your IP with an Equal Cost Multipath (ECMP) strategy. If you want more control over this, the Vultr doc recommends using BGP prepends to artificially increase the path length to certain instances, changing which instances get traffic. I'm not doing that, but it is an option if you wanted to configure a primary and a backup instance, for example.</p>
+
+<p>After testing that your traffic will continue to go through wth instances down, you can decide how you want to handle services, configure any firewall rules, and change DNS records to point to the new floating IP. I won't cover this here. All I really need is to have httpd listening on the floating IP, and change the DNS A record for my domain to that IP. I'm keeping website files in sync by giving all instances a cron job to pull the Github repo for this website periodically.</p>
+
+<p>Something to note here is that httpd logs will be spread across all the instances serving the site, because incoming connections with their HTTP requests will be routed via anycast and hit different instances. I don't really care about that for this site, but if you do, or if you are running something more important, you'll need a strategy for handling this. Centralized logging would be a good idea if that is a concern.</p>
+
+<p>One other thing I did was change sshd to listen on only the public IP of each instance. By default it will listen on all IPs, but I don't want it listening on the floating IP address because trying to SSH to the floating IP makes no sense. Edit "ListenAddress" in /etc/ssh/sshd_config to use that instance's own public IP and restart sshd to change this.</p>
+
+<p>This all sounds like much more work than it really is. Once you have a working bgpd.conf, you can copy it to the rest of your instances easily to get them up and running. One last thing I do is enable automatic backups on each instance in this group and reserve their public IPs. Should anything happen to an instance, this will let you destroy it and deploy a backup with the same IP address, saving you the trouble of having to configure manually again or change bgpd.conf to accomodate a new IP.</p>
+
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>
