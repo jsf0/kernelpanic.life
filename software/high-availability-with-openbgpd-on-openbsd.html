@@ -177,7 +177,7 @@ deny from any max-as-len 100
 </code>
 </pre> 
 
-<p>There is quite a lot to this file, but the comments explain what is going on. The ASN is your private ASN found on the BGP tab of your instance. The password (hunter2 in this example) will be found there as well. INSTANCE_IP should be changed on each instance that will be part of this group. The FLOATING_IP will remain the same on all instances, because we want everything annoucing one IP address.</p>
+<p>There is quite a lot to this file, but the comments explain what is going on. The ASN is your private ASN found on the BGP tab of your instance. The password (hunter2 in this example) will be found there as well. INSTANCE_IP should be changed on each instance that will be part of this group. The FLOATING_IP will remain the same on all instances, because we want everything announcing one IP address.</p>
 
 <p>We're only announcing that floating IP, and our only neighbor is Vultr. The neighbor section will configure that session with our password. The rest of the file is essentially just the default rules, which filter some incorrect ASNs and prefixes. You could get more or less aggressive here if you like. I'm just leaving it as-is.</p>
 
