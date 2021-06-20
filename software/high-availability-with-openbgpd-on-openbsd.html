@@ -25,43 +25,34 @@
 
 <p>Whether you are using BIRD or OpenBGPD, on OpenBSD it is necessary to enable IP forwarding for this setup to work:</p>
 
-<pre>
-<code>
+<pre><code>
 # sysctl net.inet.ip.forwarding=1
-</code>
-</pre>
+</code></pre>
 
 <p>This can be enabled on boot by placing the following line in /etc/sysctl.conf</p>
 
-<pre>
-<code>
+<pre><code>
 net.inet.ip.forwarding=1
-</code>
-</pre>
+</code></pre>
 
 <p>For this example, we'll pretend that 8.9.8.9/32 is the reserved IP we'll be announcing. Create a new loopback interface and give it that IP:</p>
 
-<pre>
-<code>
+<pre><code>
 # ifconfig lo1 create
 # ifconfig lo1 inet 8.9.8.9/32
 # ifconfig lo1 up
-</code>
-</pre>
+</code></pre>
 
 <p>Test by trying to ping 8.9.8.9 from the same instance, which should work. Make this persistent by creating /etc/hostname.lo1 with the following:</p>
 
-<pre>
-<code>
+<pre><code>
 inet 8.9.8.9/32
 up
-</code>
-</pre>
+</code></pre>
 
 <p>I took the example bgpd.conf file from /etc/examples and modified it slightly. While the file is verbose, most of the options here don't need to be changed for a very simple setup like this. The full config I'm running can be found below:</p>
 
-<pre>
-<code>
+<pre><code>
 # define our own ASN as a macro
 # This ASN is an example; yours will be found in the BGP tab of any Vultr instance
 ASN="4000000000"
@@ -174,8 +165,7 @@ deny quick from any AS 4200000000 - 4294967295
 
 # filter out too long paths
 deny from any max-as-len 100
-</code>
-</pre> 
+</code></pre>
 
 <p>There is quite a lot to this file, but the comments explain what is going on. The ASN is your private ASN found on the BGP tab of your instance. The password (hunter2 in this example) will be found there as well. INSTANCE_IP should be changed on each instance that will be part of this group. The FLOATING_IP will remain the same on all instances, because we want everything announcing one IP address.</p>
 
@@ -183,38 +173,30 @@ deny from any max-as-len 100
 
 <p>It's a good idea to test this file for validity:</p>
 
-<pre>
-<code>
+<pre><code>
 # bgpd -n
-</code>
-</pre>
+</code></pre>
 
 <p>If the file's syntax is good, you can enable bgpd and start it:</p>
 
-<pre>
-<code>
+<pre><code>
 # rcctl enable bgpd
 # rcctl start bgpd
-</code>
-</pre>
+</code></pre>
 
 <p>You can use bgpctl to view information about your session. There are a lot of things it can do, but I like to do a quick check to see if everything looks correct and that we have a session:</p>
 
-<pre>
-<code>
+<pre><code>
 # bgpctl show summary
-</code>
-</pre>
+</code></pre>
 
 <p>You should get something like this if everything is working:</p>
 
-<pre>
-<code>
+<pre><code>
 # bgpctl show summary                                                                                             
 Neighbor                   AS    MsgRcvd    MsgSent  OutQ Up/Down  State/PrfRcvd
 Vultr                   64515     137169         64     0 00:30:18 832571
-</code>
-</pre>
+</code></pre>
 
 <p>Next, try to ping 8.9.8.9 from outside the instance. If everything was setup correctly, this should work. If it does, you can proceed to do the same configuration on your other instances, just remembering to change the INSTANCE_IP variable in /etc/bgpd.conf to match that instance's public IP.</p>
 

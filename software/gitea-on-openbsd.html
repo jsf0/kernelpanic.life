@@ -18,37 +18,30 @@
 <p>Gitea is a self-hosted Git service that is fairly easy to setup, and provides a significantly simpler alternative to other self-hosted Git web interfaces such as Gitlab. It's written in Go and can be configured with one configuration file. Setting up an OpenBSD server running Gitea is not hard, but there are a number of things to be aware of that are not obvious.</p>
 
 <p>Installation is done the usual way:</p>
-<pre>
-<code>
+<pre><code>
 # pkg_add gitea
-</code>
-</pre>
+</code></pre>
 
 <p>You can enable it and start it to set the initial configuration with rcctl:</p>
 
-<pre>
-<code>
+<pre><code>
 # rcctl -f start gitea
-</code>
-</pre>
+</code></pre>
 
 <p>This will start Gitea listening on port 3000. Open that in a web browser and set it up as desired.</p>
 
 <p>OpenBSD changes a few defaults from a stock Gitea installation. In particular, the default configuration file is located at /etc/gitea/app.ini . However, simply starting Gitea from rcctl will <strong>not</strong> use that file by default. To force this (and I highly recommend it, because it greatly simplifies things), set the -c flag in rc.conf.local like so:</p>
 
-<pre>
-<code>
+<pre><code>
 # rcctl enable gitea
 # rcctl set gitea flags "-c /etc/gitea/app.ini"
-</code>
-</pre>
+</code></pre>
 
 <p>Now Gitea will use /etc/gitea/app.ini for its configuration whenever it is started by rcctl.</p>
 
 <p>The next thing I wanted was to secure the connection to Gitea with TLS. Gitea doesn't have permissions to listen on 443 directly, but I didn't really care too much about that. Instead I run it on port 3000 and run httpd on port 80 to redirect to port 3000, as well as handle Let's Encrypt verification with acme-client. A simple config for httpd gets the job done:</p>
 
-<pre>
-<code>
+<pre><code>
 server "code.kernelpanic.life" {
         listen on * port 80
         location "/.well-known/acme-challenge/*" {
@@ -59,31 +52,26 @@ server "code.kernelpanic.life" {
                 block return 302 "https://$HTTP_HOST:3000$REQUEST_URI"
         }
 }
-</code>
-</pre>
+</code></pre>
 
 <p>You can then use acme-client to configure Let's Encrypt TLS certificates, or pkg_add certbot and use that instead. To actually make Gitea enable TLS and use your cert, you will have to set the protocol to https in /etc/gitea/app.ini and make the certs available to Gitea, as the _gitea user will not be able to read the usual location of /etc/ssl/private.</p>
 
 <p>I changed the following lines in /etc/gitea/app.ini to look like so:</p>
 
-<pre>
-<code>
+<pre><code>
 PROTOCOL                        = https
 CERT_FILE                       = /var/gitea/custom/https/fullchain.pem
 KEY_FILE                        = /var/gitea/custom/https/key.pem
-</code>
-</pre>
+</code></pre>
 
 <p>At this point, Gitea will run on port 3000 and use TLS with the cert/key pair found in /var/gitea/custom/https/. httpd will run on port 80 and handle future Let's Encrypt verification requests initiated by acme-client, and redirect traffic to port 3000.</p>
 
 <p>There are two other options I changed. I wanted anyone to be able to view my repositories without having to be signed in, and also make the "Explore" view the default. These lines change that:</p>
 
-<pre>
-<code>
+<pre><code>
 REQUIRE_SIGNIN_VIEW             = false
 LANDING_PAGE                    = explore
-</code>
-</pre>
+</code></pre>
 
 <p>There are a ton of options in /etc/gita/app.ini but this does the job for my purposes. So far, I'm pretty happy with this setup.</p>
 
