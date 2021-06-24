@@ -305,7 +305,7 @@ Vultr                   64515     137169         64     0 00:30:18 832571
 
 <p>This won't be a long post, but hopefully will save someone out there from a disaster.</p>
 
-<p>I wrote <a href="/software/broadcast-commands-in-tmux.html">before</a> about how I am a fan of Terminator and its "broadcast all" feature, which allows you to send a command to multiple Terminator panes or windows simultaneously. When combined with the pane splitting feature, this can be a tremendous time saver when you need to run the same command on multiple servers, for example, and have multiple SSH sessions open.</p>
+<p>I wrote <a href="http://kernelpanic.life/software/broadcast-commands-in-tmux.html">before</a> about how I am a fan of Terminator and its "broadcast all" feature, which allows you to send a command to multiple Terminator panes or windows simultaneously. When combined with the pane splitting feature, this can be a tremendous time saver when you need to run the same command on multiple servers, for example, and have multiple SSH sessions open.</p>
 
 <p>However, "broadcast all" can be dangerous, because Terminator will happily send that command to <strong>all</strong> of your Terminator windows, even in other virtual desktops. Working on configuring some out-of-production servers in one Terminator window? Forgot about that minimized Terminator window that has an open SSH session to a production server? It's easy to see where this could go. Fortunately, the only damage I have inflicted with this mistake (so far) was to my ego when I sent a reboot command to a bunch of remote machines, and was very surprised to see my own laptop reboot too. Sigh.</p>
 
@@ -328,7 +328,7 @@ Vultr                   64515     137169         64     0 00:30:18 832571
 
 <p>OpenBSD recently introduced a new virtual ethernet bridge, called <a href="https://marc.info/?l=openbsd-tech&m=161335364329307">veb(4)</a> that can replace bridge(4) for use as a layer 2 switch. David Gwynne's email introducing veb(4) explains the differences far better than I could, but I was interested in testing the forwarding performance of veb(4) when compared with bridge(4).</p>
 
-<p>For testing this, I used the EdgeRouter 4, running OpenBSD 6.9. It has 4 cores, and performance is comparable to the APU4 from what I have seen when doing <a href="/hardware/openbsd-router-benchmarks.html">router benchmarks</a>. I gave it a very basic configuration, which can be seen below:</p>
+<p>For testing this, I used the EdgeRouter 4, running OpenBSD 6.9. It has 4 cores, and performance is comparable to the APU4 from what I have seen when doing <a href="http://kernelpanic.life/hardware/openbsd-router-benchmarks.html">router benchmarks</a>. I gave it a very basic configuration, which can be seen below:</p>
 
 <p>/etc/hostname.bridge0</p>
 <pre>
@@ -480,7 +480,7 @@ Accepted connection from 172.16.1.2, port 4527
 <h2>OpenBSD 6.9 Router Benchmarks</h2>
 <h3>21-May-2021</h3>
 
-<img src="/img/openbsd-routers.jpg" alt="OpenBSD Routers">
+<img src="http://kernelpanic.life/img/openbsd-routers.jpg" alt="OpenBSD Routers">
 
 <p>I've been using OpenBSD for my home router/gateway for years, and have run it on a number of different types of hardware. I recently got Verizon's gigabit service which is advertised at up to 940 Mb/s download and 880 Mb/s upload speeds, so I decided to benchmark some of the routers I have laying around. The contestants are:</p>
 
@@ -724,7 +724,7 @@ Connecting to host 192.168.1.1, port 5201
         <![CDATA[
 <h2>The ThinkPad X1 Carbon 9th Gen</h2>
 <h3>14-May-2021</h3>
-<img src="/img/x1-carbon-gen9.jpg" alt="A pair of X1 Carbon Gen 9 ThinkPads">
+<img src="http://kernelpanic.life/img/x1-carbon-gen9.jpg" alt="A pair of X1 Carbon Gen 9 ThinkPads">
 
 <p><strong>Year:</strong> 2021</p>
 <p><strong>CPU:</strong> 2.8 GHz Intel Core i7-1165G7 (4 physical cores, 8 logical cores with SMT)</p>
@@ -732,7 +732,7 @@ Connecting to host 192.168.1.1, port 5201
 <p><strong>RAM:</strong> 16 GB</p>
 <p><strong>Storage:</strong> 256 GB Toshiba KXG6AZNV256G NVMe SSD</p>
 <p><strong>"But can it run Chrome?":</strong> Yes </p>
-<p><a href="/hardware/x1c9hdr_dmesg.txt">dmesg</a>
+<p><a href="http://kernelpanic.life/hardware/x1c9hdr_dmesg.txt">dmesg</a>
 
 <p>My employer recently issued me a new 9th Gen X1 Carbon and I liked it enough to buy one for myself. This post will compare the two side by side.</p>
 
@@ -1035,8 +1035,8 @@ echo 'Lastly, run `sh /etc/netstart` or reboot to apply all changes'
 
 <p>The only things the script does not do is configure your Wireguard keys, or your client. But using this setup, you can have an encrypted connection to your WRP VPS and not worry about transmitting passwords in clear text.</p>
 
-<p>WRP in action rendering the full Macrumors forum in Dillo on a <a href="/hardware/titanium-powerbook-g4.html">titanium PowerBook G4</a>:</p>
-<img src="/img/wrp_wireguard.jpg" alt="Web Rendering Proxy with Dillo screenshot">
+<p>WRP in action rendering the full Macrumors forum in Dillo on a <a href="http://kernelpanic.life/hardware/titanium-powerbook-g4.html">titanium PowerBook G4</a>:</p>
+<img src="http://kernelpanic.life/img/wrp_wireguard.jpg" alt="Web Rendering Proxy with Dillo screenshot">
 
 <p>I found that a single CPU VPS handles the rendering side of things adequately, but a 2 CPU instance handles it better enough to be worth the extra cost if you are using this a lot.</p> 
 
@@ -1055,7 +1055,7 @@ echo 'Lastly, run `sh /etc/netstart` or reboot to apply all changes'
 <h2>The IBM ThinkPad T23</h2>
 <h3>07-May-2021</h3>
 
-<img src="/img/thinkpad-t23.jpg" alt="The IBM ThinkPad T23">
+<img src="http://kernelpanic.life/img/thinkpad-t23.jpg" alt="The IBM ThinkPad T23">
 
 <p><strong>Year:</strong> 2002</p>
 <p><strong>CPU:</strong> 1.13 GHz Pentium III Mobile</p>
@@ -1114,7 +1114,7 @@ EndSection
 
 <p>This setup has worked well for me and graphics are smooth on vesa, though 3D accleration is not something I have tried or really care about on this machine.</p>
 
-<p>Web browsers are in a similar situation as with the <a href="/hardware/titanium-powerbook-g4.html">PowerBook G4</a> at the moment, despite the fact that various Javascript capable browsers exist for the i386 architecture. The Pentium III does not have SSE2 support, which means any of the standard big browsers like Firefox, Chromium, or Otter will not work on this, not that they would be a lot of fun on such an old machine. Instead, Netsurf and Dillo are my choice for graphical browsing, and lynx is a perfectly viable option for console web usage.</p>
+<p>Web browsers are in a similar situation as with the <a href="http://kernelpanic.life/hardware/titanium-powerbook-g4.html">PowerBook G4</a> at the moment, despite the fact that various Javascript capable browsers exist for the i386 architecture. The Pentium III does not have SSE2 support, which means any of the standard big browsers like Firefox, Chromium, or Otter will not work on this, not that they would be a lot of fun on such an old machine. Instead, Netsurf and Dillo are my choice for graphical browsing, and lynx is a perfectly viable option for console web usage.</p>
 
 <Other software I use is similar to the PowerBook as well. Mplayer for music, wordgrinder for word processing, mutt for email (console), or claws-mail for a graphical email client. Xpdf reads PDF files nicely if I'm unfortunate enough to have to deal with a PDF.</p>
 
@@ -1212,7 +1212,7 @@ LANDING_PAGE                    = explore
 
 <p>I am a big fan of the <a href="https://gnome-terminator.org/">Terminator</a> terminal emulator because of its ability to both act as a multiplexer and broadcast a command to all panes simultaneously. This drastically speeds up executing the same task on multiple servers simultaneously (starting a Puppet run on  a bunch of servers at once, for example).</p>
 
-<p>However, one problem with Terminator is that it is a somewhat heavyweight application, pulling in piles of dependencies on a lean Linux or BSD install. As far as I know, is not available for macOS either. It also requires X11, which is a problem if running through a <a href="/hardware/dec-alphastation-250.html">VT220</a>. Fortunately, there's <a href="https://github.com/tmux/tmux">tmux</a>, a lightweight terminal multiplexer which can be made to broadcast to multiple panes just like Terminator, but does not have a large dependency chain, and comes in the OpenBSD base system.</p>
+<p>However, one problem with Terminator is that it is a somewhat heavyweight application, pulling in piles of dependencies on a lean Linux or BSD install. As far as I know, is not available for macOS either. It also requires X11, which is a problem if running through a <a href="http://kernelpanic.life/hardware/dec-alphastation-250.html">VT220</a>. Fortunately, there's <a href="https://github.com/tmux/tmux">tmux</a>, a lightweight terminal multiplexer which can be made to broadcast to multiple panes just like Terminator, but does not have a large dependency chain, and comes in the OpenBSD base system.</p>
 
 <p>The magic is in tmux's "synchronize-panes" option, which can be toggled within a tmux session by typing the prefix combination, ctrl-b, then the colon : , which opens a prompt that can be used to set various options. The following option will toggle broadcasting to all panes:</p>
 
@@ -1243,7 +1243,7 @@ setw -g window-status-format         '#{?pane_synchronized,#[bg=red],}#I:#W'
 <h2>The DEC AlphaStation 250 4/266</h2>
 <h3>17-April-2021</h3>
 
-<img src="/img/dec-alphastation-scaled.jpg" alt="The DEC AlphaStation 250 4/266">
+<img src="http://kernelpanic.life/img/dec-alphastation-scaled.jpg" alt="The DEC AlphaStation 250 4/266">
 
 <p><strong>Year:</strong> 1995</p>
 <p><strong>CPU:</strong> 266 MHz Alpha 21064A</p>
@@ -1283,7 +1283,7 @@ setw -g window-status-format         '#{?pane_synchronized,#[bg=red],}#I:#W'
 <h2>The Titanium PowerBook G4</h2>
 <h3>15-April-2021</h3>
 
-<img src="/img/titanium-powerbook-g4-scaled.jpg" alt="The Titanium PowerBook G4">
+<img src="http://kernelpanic.life/img/titanium-powerbook-g4-scaled.jpg" alt="The Titanium PowerBook G4">
 
 <p><strong>Year:</strong> 2002</p>
 <p><strong>CPU:</strong> 1.0 GHz PowerPC 7455</p>
