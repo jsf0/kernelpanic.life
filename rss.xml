@@ -1,0 +1,1456 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Kernel Panic</title>
+    <description></description>
+    <link>http://kernelpanic.life</link>
+    <atom:link href="http://kernelpanic.life/rss.xml" rel="self" type="application/rss+xml" />
+
+
+    <item>
+      <title>High Availability With OpenBGPD on OpenBSD 6.9</title>
+        <description>
+        <![CDATA[
+<h2>High Availability With OpenBGPD on OpenBSD 6.9</h2>
+<h3>19-June-2021</h3>
+
+<p>Before beginning, it is important to note that this post does not replace any documentation. My setup below is the minimum necessary to get this going, but there are a lot of factors I won't cover. Check the latest docs, especially if you are reading this long in The Future.</p>
+
+<p>I host this site on <a href="http://www.vultr.com">Vultr</a> and one of the platform's features is BGP, which can be used with a floating IP address to achieve better availability. The basic idea is to have multiple identical instances announcing the same floating IP to Vultr's infrastructure via BGP, and have your service configured on each and listening on that floating IP. Vultr will route traffic via anycast to that announced floating IP. If one or more instances go down, traffic will continue flowing to the other instances still announcing it, ensuring that your service remains available.</p>
+
+<p>If you have your own IP space (/24 minimum) and ASN, you can announce your IP(s) from different datacenters, so even if an entire datacenter is down, your service will still be reachable. If you do not have your own IP address block and ASN, you can request an ASN from Vultr and use a Vultr reserved IP as your floating IP. Doing it this way will only work for instances within the same datacenter, but still provides redundancy should one or more of your instances go dark. One immediate advantage is that this allows you to upgrade and reboot an instance without disrupting reachability.</p>
+
+<p>Vultr has an excellent <a href="http://www.vultr.com/docs/high-availability-on-vultr-with-floating-ip-and-bgp">guide</a> for doing this with Linux using BIRD 1.6. It is worth reading in full, even if you are not using Linux or BIRD. If you want though, you can use BIRD on OpenBSD pretty much exactly as in that guide, though obviously using ifconfig instead of the Linux ip commands to setup the interfaces, and using lo1 instead of dummy1. This post will focus on OpenBGPD because it is in the base system, but I have used BIRD on OpenBSD to accomplish this and it works fine.</p>
+
+<p>To get started, open a ticket with Vultr and request that private BGP be enabled for your account. Once that is done, you can click on any instance and then click on the BGP tab to see your ASN and password. You'll also need a <a href="http://www.vultr.com/docs/vultr-reserved-ips">reserved IP</a> in the same region as the instances you want to use to announce it. This IP should not be attached to any instance; just reserve it and leave it.</p>
+
+<p>Whether you are using BIRD or OpenBGPD, on OpenBSD it is necessary to enable IP forwarding for this setup to work:</p>
+
+<pre><code>
+# sysctl net.inet.ip.forwarding=1
+</code></pre>
+
+<p>This can be enabled on boot by placing the following line in /etc/sysctl.conf</p>
+
+<pre><code>
+net.inet.ip.forwarding=1
+</code></pre>
+
+<p>For this example, we'll pretend that 8.9.8.9/32 is the reserved IP we'll be announcing. Create a new loopback interface and give it that IP:</p>
+
+<pre><code>
+# ifconfig lo1 create
+# ifconfig lo1 inet 8.9.8.9/32
+# ifconfig lo1 up
+</code></pre>
+
+<p>Test by trying to ping 8.9.8.9 from the same instance, which should work. Make this persistent by creating /etc/hostname.lo1 with the following:</p>
+
+<pre><code>
+inet 8.9.8.9/32
+up
+</code></pre>
+
+<p>I took the example bgpd.conf file from /etc/examples and modified it slightly. While the file is verbose, most of the options here don't need to be changed for a very simple setup like this. The full config I'm running can be found below:</p>
+
+<pre><code>
+# define our own ASN as a macro
+# This ASN is an example; yours will be found in the BGP tab of any Vultr instance
+ASN="4000000000"
+
+# Password assigned to your account to use with Vultr neighbor, also found on the BGP tab
+PASSWORD="hunter2"
+
+# public IP of this particular instance
+INSTANCE_IP="1.2.3.4"
+
+# reserved IP that each instance will announce
+FLOATING_IP="8.9.8.9/32"
+
+# global configuration
+AS $ASN
+router-id $INSTANCE_IP
+
+# list of networks that may be originated by our ASN
+prefix-set mynetworks {
+	$FLOATING_IP
+}
+
+include "/var/db/rpki-client/openbgpd"
+
+# define bogon prefixes which should not be part of the DFZ
+prefix-set bogons {
+	0.0.0.0/8 or-longer		# 'this' network [RFC1122]
+	10.0.0.0/8 or-longer		# private space [RFC1918]
+	100.64.0.0/10 or-longer		# CGN Shared [RFC6598]
+	127.0.0.0/8 or-longer		# localhost [RFC1122]
+	169.254.0.0/16 or-longer	# link local [RFC3927]
+	172.16.0.0/12 or-longer		# private space [RFC1918]
+	192.0.2.0/24 or-longer		# TEST-NET-1 [RFC5737]
+	192.88.99.0/24 or-longer	# 6to4 anycast relay [RFC7526]
+	192.168.0.0/16 or-longer	# private space [RFC1918]
+	198.18.0.0/15 or-longer		# benchmarking [RFC2544]
+	198.51.100.0/24 or-longer	# TEST-NET-2 [RFC5737]
+	203.0.113.0/24 or-longer	# TEST-NET-3 [RFC5737]
+	224.0.0.0/4 or-longer		# multicast
+	240.0.0.0/4 or-longer		# reserved for future use
+	::/8 or-longer			# RFC 4291 IPv4-compatible, loopback, et al
+	0100::/64 or-longer		# Discard-Only [RFC6666]
+	2001:2::/48 or-longer		# BMWG [RFC5180]
+	2001:10::/28 or-longer		# ORCHID [RFC4843]
+	2001:db8::/32 or-longer		# docu range [RFC3849]
+	2002::/16 or-longer		# 6to4 anycast relay [RFC7526]
+	3ffe::/16 or-longer		# old 6bone
+	fc00::/7 or-longer		# unique local unicast
+	fe80::/10 or-longer		# link local unicast
+	fec0::/10 or-longer		# old site local unicast
+	ff00::/8 or-longer		# multicast
+}
+
+# Generate routes for the networks our ASN will originate.
+# The communities (read 'tags') are later used to match on what
+# is announced to EBGP neighbors
+network prefix-set mynetworks set large-community $ASN:1:1
+
+# upstream providers
+group "upstreams" {
+	neighbor 169.254.169.254 {
+		remote-as 64515
+		descr "Vultr"
+		announce IPv4 unicast
+		tcp md5sig password $PASSWORD
+		multihop 2
+		local-address $INSTANCE_IP
+	}
+}
+
+### for simple BGP setups, no editing below this line is required ###
+
+# Outbound EBGP: only allow self originated networks to ebgp peers
+# Don't leak any routes from upstream or peering sessions. This is done
+# by checking for routes that are tagged with the large-community $ASN:1:1
+allow to ebgp prefix-set mynetworks large-community $ASN:1:1
+
+# deny more-specifics of our own originated prefixes
+deny quick from ebgp prefix-set mynetworks or-longer
+
+# IBGP: allow all updates to and from our IBGP neighbors
+allow from ibgp
+allow to ibgp
+
+# Scrub normal and large communities relevant to our ASN from EBGP neighbors
+# http://tools.ietf.org/html/rfc7454#section-11
+match from ebgp set { large-community delete $ASN:*:* }
+
+# filter out prefixes longer than 24 or shorter than 8 bits for IPv4
+# and longer than 48 or shorter than 16 bits for IPv6.
+allow from any inet prefixlen 8 - 24
+allow from any inet6 prefixlen 16 - 48
+
+# Honor requests to gracefully shutdown BGP sessions
+# http://tools.ietf.org/html/rfc8326
+match from any community GRACEFUL_SHUTDOWN set { localpref 0 }
+
+deny quick from any prefix-set bogons
+
+# deny RPKI invalid, built by rpki-client(8), see root crontab
+deny quick from ebgp ovs invalid
+
+# filter bogon AS numbers
+# AS_TRANS (23456) is not supposed to show up in any path and indicates a
+# misconfiguration. Additionally Private or Reserved ASNs have no place in
+# the public DFZ. http://www.iana.org/assignments/as-numbers/as-numbers.xhtml
+deny quick from any AS 23456
+deny quick from any AS 64496 - 131071
+deny quick from any AS 4200000000 - 4294967295
+
+# filter out too long paths
+deny from any max-as-len 100
+</code></pre>
+
+<p>There is quite a lot to this file, but the comments explain what is going on. The ASN is your private ASN found on the BGP tab of your instance. The password (hunter2 in this example) will be found there as well. INSTANCE_IP should be changed on each instance that will be part of this group. The FLOATING_IP will remain the same on all instances, because we want everything announcing one IP address.</p>
+
+<p>We're only announcing that floating IP, and our only neighbor is Vultr. The neighbor section will configure that session with our password. The rest of the file is essentially just the default rules, which filter some incorrect ASNs and prefixes. You could get more or less aggressive here if you like. I'm just leaving it as-is.</p>
+
+<p>It's a good idea to test this file for validity:</p>
+
+<pre><code>
+# bgpd -n
+</code></pre>
+
+<p>If the file's syntax is good, you can enable bgpd and start it:</p>
+
+<pre><code>
+# rcctl enable bgpd
+# rcctl start bgpd
+</code></pre>
+
+<p>You can use bgpctl to view information about your session. There are a lot of things it can do, but I like to do a quick check to see if everything looks correct and that we have a session:</p>
+
+<pre><code>
+# bgpctl show summary
+</code></pre>
+
+<p>You should get something like this if everything is working:</p>
+
+<pre><code>
+# bgpctl show summary                                                                                             
+Neighbor                   AS    MsgRcvd    MsgSent  OutQ Up/Down  State/PrfRcvd
+Vultr                   64515     137169         64     0 00:30:18 832571
+</code></pre>
+
+<p>Next, try to ping 8.9.8.9 from outside the instance. If everything was setup correctly, this should work. If it does, you can proceed to do the same configuration on your other instances, just remembering to change the INSTANCE_IP variable in /etc/bgpd.conf to match that instance's public IP.</p>
+
+<p>Once you have a couple instances with established BGP sessions, try pinging the floating IP from outside. You can shut down and reboot instances at will and the pings should all go through as long as at least one of the instances is up. I like to run tcpdump on each instance while pinging the IP from home to see how the traffic flow changes while knocking instances out.</p>
+
+<p>Traffic will be routed to your IP with an Equal Cost Multipath (ECMP) strategy. If you want more control over this, the Vultr doc recommends using BGP prepends to artificially increase the path length to certain instances, changing which instances get traffic. I'm not doing that, but it is an option if you wanted to configure a primary and a backup instance, for example.</p>
+
+<p>After testing that your traffic will continue to go through wth instances down, you can decide how you want to handle services, configure any firewall rules, and change DNS records to point to the new floating IP. I won't cover this here. All I really need is to have httpd listening on the floating IP, and change the DNS A record for my domain to that IP. I'm keeping website files in sync by giving all instances a cron job to pull the Github repo for this website periodically.</p>
+
+<p>Something to note here is that httpd logs will be spread across all the instances serving the site, because incoming connections with their HTTP requests will be routed via anycast and hit different instances. I don't really care about that for this site, but if you do, or if you are running something more important, you'll need a strategy for handling this. Centralized logging would be a good idea if that is a concern.</p>
+
+<p>One other thing I did was change sshd to listen on only the public IP of each instance. By default it will listen on all IPs, but I don't want it listening on the floating IP address because trying to SSH to the floating IP makes no sense. Edit "ListenAddress" in /etc/ssh/sshd_config to use that instance's own public IP and restart sshd to change this.</p>
+
+<p>This all sounds like much more work than it really is. Once you have a working bgpd.conf, you can copy it to the rest of your instances easily to get them up and running. One last thing I do is enable automatic backups on each instance in this group and reserve their public IPs. Should anything happen to an instance, this will let you destroy it and deploy a backup with the same IP address, saving you the trouble of having to configure manually again or change bgpd.conf to accomodate a new IP.</p>
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/software/high-availability-wi
+th-openbgpd-on-openbsd.html</guid>
+        <link>http://kernelpanic.life/software/high-availability-wi
+th-openbgpd-on-openbsd.html</link>
+        <pubDate>Sat, 19 Jun 2021 05:00:00 GMT</pubDate>
+    </item>
+
+
+    <item>
+      <title>Rolling Back OpenBSD PF Changes</title>
+        <description>
+        <![CDATA[
+<h2>Rolling Back OpenBSD PF Changes</h2>
+<h3>05-June-2021</h3>
+
+<p>If you have ever done something dumb in a firewall config and locked yourself out of a machine, you will appreciate the ability to automatically roll a configuration back to a previous version after a timeout period. This is something that commercial routers and firewall devices from Cisco, Juniper, and others have implemented, though their solutions cover more than just the firewall itself.</p>
+
+<p>My typical workflow with PF looks something like this:</p>
+
+<p>1.) Make a backup copy of /etc/pf.conf</p>
+<p>2.) Open /etc/pf.conf in my favorite text editor.</p>
+<p>3.) Make bad decisions.</p>
+<p>4.) Save and exit.</p>
+<p>5.) Run 'pfctl -f /etc/pf.conf' and pray</p>
+
+<p>The obvious fault in this is that if I lock myself out or cause some sort of calamity, there is no built-in ability to revert to a previous config automatically with OpenBSD's pfctl(8). You can accomplish something like this with a shell one-liner:</p>
+
+<pre>
+<code>
+# pfctl -f /etc/pf.conf && sleep 60 && pfctl -d
+</code>
+</pre>
+
+<p>This will load the /etc/pf.conf ruleset, wait 60 seconds, and then disable PF so you can get back in and fix whatever you broke. If you wanted instead to load a different ruleset, you could do something like this:</p>
+
+<pre>
+<code>
+# pfctl -f /etc/pf.conf && sleep 60 && pfctl -f /etc/pf.conf.backup
+</code>
+</pre>
+
+<p>However, there are some disadvantages to one liners like this. They are not very extensible. If you want to take other actions on timeout, the one-liner can get messy quickly.</p>
+
+<p>They aren't very flexible. If you want to send the whole rollback process to the background so you can do other tasks, like testing your config, you can't really do this nicely or cleanly in a one liner, though it is possible. You can run it in tmux and switch back to it to send it a Ctrl-C as sort of a workaround.</p>
+
+<p>It also is not easy to add logging. When changing PF configs it can be nice to see exactly which one was loaded, or if the process was interrupted.</p>
+
+<p>Sometimes it can be useful to copy the backup config over to /etc/pf.conf so that it persists across a reboot. Doing this in a one liner is certainly possible, but involves more typing, and I am too lazy to do that.</p>
+
+<p>I wanted a somewhat more robust and permanent solution than this that I could modify in the future, that also did not involve cron(8) in any way. Enter <a href="http://github.com/jsf0/rpfload">rpfload</a>, a simple Perl wrapper around pfctl(8) that handles all of the above.</p>
+
+<p>rpfload can be used to load /etc/pf.conf and also automatically rollback to the backup file after a configurable period of time:</p>
+
+<pre>
+<code>
+# rpfload -f /etc/pf.conf -b /etc/pf.conf.backup
+</code>
+</pre>
+
+<p>This will load /etc/pf.conf, wait 60 seconds by default (this timeout is configurable with the -t flag), then load /etc/pf.conf.backup. If the configuration is good, killing the process will prevent the rollback. rpfload will print out its own PID to stdout make it easier to do this, especially if it is run in the background.</p>
+
+<p>Another way to do this would be to use the -o flag, which will additionally overwrite /etc/pf.conf with the backup config if the timeout is reached without interruption. One possible utility of this would be so that you don't forget and end up rebooting with the broken /etc/pf.conf, which would be loaded on boot.</p>
+
+<p>If all you want to do is disable PF rather than load a backup config, you can do this with the -d flag:</p>
+
+<pre>
+<code>
+# rpfload -d -f /etc/pf.conf
+</code>
+</pre>
+
+<p>rpfload will also log what it does to syslog, so you can see which PF config was applied by checking /var/log/messages.</p>
+
+<p>There are valid criticisms. It may be unnecessary if you don't care about logging, switching configs, or other facy things. It is written in Perl, which some people hate. Worse, it was written in Perl by <i>me</i>, a non-Perl-programmer, so the code is not perfect. Doubtless you can think of others.</p>
+
+<p>But it solves one of my problems exactly how I wanted, has no external dependencies in OpenBSD, and I think I might even understand it. That's all I wanted. You can get it <a href="http://github.com/jsf0/rpfload">here</a></p>
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/software/rolling-back-openbsd
+-pf-changes.html</guid>
+        <link>http://kernelpanic.life/software/rolling-back-openbsd
+-pf-changes.html</link>
+        <pubDate>Sat, 05 Jun 2021 05:00:00 GMT</pubDate>
+    </item>
+
+
+    <item>
+      <title>Safely Broadcasting All With Terminator</title>
+        <description>
+        <![CDATA[
+<h2>Safely Broadcasting All With Terminator</h2>
+<h3>03-June-2021</h3>
+
+<p>This won't be a long post, but hopefully will save someone out there from a disaster.</p>
+
+<p>I wrote <a href="/software/broadcast-commands-in-tmux.html">before</a> about how I am a fan of Terminator and its "broadcast all" feature, which allows you to send a command to multiple Terminator panes or windows simultaneously. When combined with the pane splitting feature, this can be a tremendous time saver when you need to run the same command on multiple servers, for example, and have multiple SSH sessions open.</p>
+
+<p>However, "broadcast all" can be dangerous, because Terminator will happily send that command to <strong>all</strong> of your Terminator windows, even in other virtual desktops. Working on configuring some out-of-production servers in one Terminator window? Forgot about that minimized Terminator window that has an open SSH session to a production server? It's easy to see where this could go. Fortunately, the only damage I have inflicted with this mistake (so far) was to my ego when I sent a reboot command to a bunch of remote machines, and was very surprised to see my own laptop reboot too. Sigh.</p>
+
+<p>The "broadcast group" alternative seems to be the intended way to prevent this, but this requires actually setting up groups and then manually assigning Terminator instances to them. I simply can't be bothered. Instead, I just want to broadcast to multiple panes in my current Terminator window and nowhere else.</p>
+
+<p>Fortunately, there's an easy solution: don't let Terminator use DBus. Go to preferences, uncheck "DBus server", done. Now "broadcast all" will only send your commands to the current window and its panes. You other Terminator sessions will be untouched.</p>
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/software/safely-broadcasting-
+all-terminator.html</guid>
+        <link>http://kernelpanic.life/software/safely-broadcasting-
+all-terminator.html</link>
+        <pubDate>Thu, 03 Jun 2021 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
+      <title>OpenBSD 6.9 veb vs bridge Benchmarks</title>
+        <description>
+        <![CDATA[
+<h2>OpenBSD 6.9 veb vs bridge Benchmarks</h2>
+<h3>29-May-2021</h3>
+
+<p>OpenBSD recently introduced a new virtual ethernet bridge, called <a href="http://marc.info/?l=openbsd-tech&m=161335364329307">veb(4)</a> that can replace bridge(4) for use as a layer 2 switch. David Gwynne's email introducing veb(4) explains the differences far better than I could, but I was interested in testing the forwarding performance of veb(4) when compared with bridge(4).</p>
+
+<p>For testing this, I used the EdgeRouter 4, running OpenBSD 6.9. It has 4 cores, and performance is comparable to the APU4 from what I have seen when doing <a href="/hardware/openbsd-router-benchmarks.html">router benchmarks</a>. I gave it a very basic configuration, which can be seen below:</p>
+
+<p>/etc/hostname.bridge0</p>
+<pre>
+<code>
+add cnmac0
+add cnmac1
+add cnmac2
+add cnmac3
+up
+</code>
+</pre>
+
+<p>/etc/hostname.cnmac*</p>
+
+<pre>
+<code>
+up
+</code>
+</pre>
+
+<p>/etc/pf.conf</p>
+
+<pre>
+<code>
+set skip on lo0
+pass
+</code>
+</pre>
+
+<p>The veb(4) configuration was exactly the same, with only /etc/hostname.bridge0 being renamed to /etc/hostname.veb0</p>
+
+<p>I used iperf3 for the test, on an X250 running DragonFly BSD 6.0 and a T14 running Ubuntu 20.04. First, I tested the two connected directly to each other via ethernet, with no switch between them:</p>
+
+<pre>
+<code>
+Accepted connection from 172.16.1.2, port 4071
+[  5] local 172.16.1.3 port 5201 connected to 172.16.1.2 port 4367
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  93.3 MBytes   782 Mbits/sec                  
+[  5]   1.00-2.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   2.00-3.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   3.00-4.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   4.00-5.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   5.00-6.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   6.00-7.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   7.00-8.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   8.00-9.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   9.00-10.00  sec   111 MBytes   934 Mbits/sec                  
+[  5]  10.00-10.15  sec  16.3 MBytes   934 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.15  sec  1.09 GBytes   919 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>As they both have gigabit ports, the above is the maximum expected for this test.</p>
+
+<p>First up was bridge(4):</p>
+
+<pre>
+<code>
+Accepted connection from 172.16.1.2, port 3498
+[  5] local 172.16.1.3 port 5201 connected to 172.16.1.2 port 3600
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  37.2 MBytes   312 Mbits/sec                  
+[  5]   1.00-2.00   sec  52.6 MBytes   441 Mbits/sec                  
+[  5]   2.00-3.00   sec  50.8 MBytes   426 Mbits/sec                  
+[  5]   3.00-4.00   sec  50.1 MBytes   420 Mbits/sec                  
+[  5]   4.00-5.00   sec  51.2 MBytes   430 Mbits/sec                  
+[  5]   5.00-6.00   sec  50.3 MBytes   422 Mbits/sec                  
+[  5]   6.00-7.00   sec  50.7 MBytes   425 Mbits/sec                  
+[  5]   7.00-8.00   sec  51.4 MBytes   431 Mbits/sec                  
+[  5]   8.00-9.00   sec  51.4 MBytes   431 Mbits/sec                  
+[  5]   9.00-10.00  sec  50.9 MBytes   427 Mbits/sec                  
+[  5]  10.00-10.16  sec  8.39 MBytes   441 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.16  sec   505 MBytes   417 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>During the test, I was watching the output of top(1) on the EdgeRouter and this test resulted in 99% utilization of 1 core on the EdgeRouter, while the other 3 remained idle.</p>
+
+<p>On to veb(4):</p>
+
+<pre>
+<code>
+Accepted connection from 172.16.1.2, port 2069
+[  5] local 172.16.1.3 port 5201 connected to 172.16.1.2 port 4958
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  80.9 MBytes   679 Mbits/sec                  
+[  5]   1.00-2.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   2.00-3.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   3.00-4.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   4.00-5.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   5.00-6.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   6.00-7.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   7.00-8.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   8.00-9.00   sec   111 MBytes   934 Mbits/sec                  
+[  5]   9.00-10.00  sec   111 MBytes   934 Mbits/sec                  
+[  5]  10.00-10.13  sec  14.0 MBytes   934 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.13  sec  1.07 GBytes   909 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>Without going through pf, veb(4) is able to forward traffic between the two laptops at essentially the same rate as a direct connection. 2 cores were used at about 30-40% utilization on each core with veb(4), in contrast with the single core at 99% utilization when tested with bridge(4).</p>
+
+<p>Running the test again with link1 set in hostname.veb0 to force traffic through pf leads to the following:</p>
+
+<pre>
+<code>
+Accepted connection from 172.16.1.2, port 4527
+[  5] local 172.16.1.3 port 5201 connected to 172.16.1.2 port 3978
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  57.4 MBytes   481 Mbits/sec                  
+[  5]   1.00-2.00   sec  80.8 MBytes   678 Mbits/sec                  
+[  5]   2.00-3.00   sec  81.5 MBytes   684 Mbits/sec                  
+[  5]   3.00-4.00   sec  81.0 MBytes   679 Mbits/sec                  
+[  5]   4.00-5.00   sec  81.2 MBytes   681 Mbits/sec                  
+[  5]   5.00-6.00   sec  80.4 MBytes   674 Mbits/sec                  
+[  5]   6.00-7.00   sec  80.1 MBytes   672 Mbits/sec                  
+[  5]   7.00-8.00   sec  80.2 MBytes   673 Mbits/sec                  
+[  5]   8.00-9.00   sec  73.5 MBytes   616 Mbits/sec                  
+[  5]   9.00-10.00  sec  71.8 MBytes   603 Mbits/sec                  
+[  5]  10.00-10.14  sec  11.4 MBytes   677 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.14  sec   779 MBytes   645 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>This is a pretty encouraging result, and while this configuration was very simple, the performance gap is such that if veb(4) does what you want, it makes sense to use it instead of bridge(4), assuming you are comfortable using much newer and less tested code. It is also possible that veb(4) can go faster than this, but unfortunately I can only test up to gigabit with my hardware. A better test would be to test actual packets per second, and I may redo this eventually to see what kind of results that gets.</p>
+
+<p>Update: /u/Kernigh pointed out that veb(4) was not sending traffic through pf in the tests above, whereas bridge(4) was. This was fixed and the test run again.</p>
+        ]]>
+        </description>
+        <guid></guid>
+        <link></link>
+        <pubDate>Sat, 29 May 2021 05:00:00 GMT</pubDate>
+    </item>
+
+
+    <item>
+      <title>OpenBSD 6.9 Router Benchmarks</title>
+        <description>
+        <![CDATA[
+<h2>OpenBSD 6.9 Router Benchmarks</h2>
+<h3>21-May-2021</h3>
+
+<img src="/img/openbsd-routers.jpg" alt="OpenBSD Routers">
+
+<p>I've been using OpenBSD for my home router/gateway for years, and have run it on a number of different types of hardware. I recently got Verizon's gigabit service which is advertised at up to 940 Mb/s download and 880 Mb/s upload speeds, so I decided to benchmark some of the routers I have laying around. The contestants are:</p>
+
+<ul>
+	<li><strong>Ubiquiti EdgeRouter Lite:</strong> dual core 500 Mhz Cavium Octeon, Cavium ethernet using cnmac driver</li>
+	<li><strong>PC Engines APU4:</strong> quad core 1 GHz AMD GX-412TC Jaguar, Intel i211AT ethernet with em driver</li>
+	<li><strong>Ubiquiti EdgeRouter 4:</strong> quad core 1 GHz Cavium Octeon, Cavium ethernet with cnmac driver</li>
+	<li><strong>Supermicro E300-8D:</strong> quad core 2.2 GHz Intel Xeon D-1518 (SMT disabled), Intel I210 ethernet with em driver</li>
+</ul>
+
+<p>All of these routers are running OpenBSD 6.9 and are set up exactly as described in the <a href="http://www.openbsd.org/faq/pf/example1.html">Building a Router</a> FAQ page. There are lots of tweaks people do for performance, but I did not test any of them. What you see in the guide is what you get. CPU frequency was set at the maximum via apmd, where applicable.</p>
+
+<p>Testing was done from a T14 running Ubuntu 20.04 with 3 runs at Speedtest.net using the Vultr speed test server. This is not perfect as it only tests web traffic, so smaller or larger packet sizes than what you find in web traffic are not tested, nor is UDP tested either. Since this is going to an external server outside my network, it also sends that traffic over other carriers, so some of this is at the mercy of the route. But this is not meant to be scientific, and probably represents how most people will use their router anyway.</p>
+
+<p>Results are below, (averaged over the 3 tests):</p>
+
+<ul>
+	<li>EdgeRouter Lite: <strong>114.63</strong> Mb/s download, <strong>106.74</strong> Mb/s upload</li>
+	<li>APU4: <strong>358.02</strong> Mb/s download, <strong>328.42</strong> Mb/s upload</li>
+	<li>EdgeRouter 4: <strong>462.23</strong> Mb/s download, <strong>411.59</strong> Mb/s upload</li>
+	<li>E300-8D: <strong>752.52</strong> Mb/s download, <strong>884.58</strong> Mb/s upload</li>
+</ul>
+
+<p>The EdgeRouter Lite has a small ASIC onboard for packet forwarding which is used by Ubiquiti's EdgeOS. OpenBSD does not use this at all, so all of this was done by the two 500 MHz cores. One interesting thing is that the EdgeRouter 4 was signifcantly faster than the APU4, beating it by about 100 Mb/s. Despite the fact that both have four 1 GHz cores, the Octeon apparently moves packets around better than the AMD Jaguar. The fastest in the list is unsurprisingly the Xeon powered Supermicro E300, and it likely can go faster, but the connection may have been the limitation here.</p>
+
+<p>I am currently using the Supermicro as my router, though my favorite device is the EdgeRouter 4 here for the best balance of speed and low power consumption. The E300's fans have a very whiny pitch to them that has made me relegate this machine to the basement. On the plus side, it has IPMI, and it is fast enough to be usable for other purposes.</p>
+
+<p><strong>Update:</strong> There was some criticism of using Speedtest.net as the test method, which I expected and I agree with it. I ran the following tests with iperf3 to see if there would be a difference. I did not test the Supermicro in this manner. iperf3 was running on the Supermicro in server mode, and the T14 laptop was connecting through the tested router to the iperf3 server on the Supermicro for all of these tests. These were with iperf3's default options.</p>
+
+<p>I also tried with and without the scrub and antispoof lines in pf.conf to see if that would make any difference. See below for the results:</p>
+
+<p>EdgeRouter Lite with scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.99, port 51479
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.99 port 50181
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  12.9 MBytes   108 Mbits/sec                  
+[  5]   1.00-2.00   sec  14.8 MBytes   124 Mbits/sec                  
+[  5]   2.00-3.00   sec  15.1 MBytes   127 Mbits/sec                  
+[  5]   3.00-4.00   sec  15.5 MBytes   130 Mbits/sec                  
+[  5]   4.00-5.00   sec  15.6 MBytes   131 Mbits/sec                  
+[  5]   5.00-6.00   sec  15.1 MBytes   126 Mbits/sec                  
+[  5]   6.00-7.00   sec  15.4 MBytes   129 Mbits/sec                  
+[  5]   7.00-8.00   sec  14.7 MBytes   123 Mbits/sec                  
+[  5]   8.00-9.00   sec  14.9 MBytes   125 Mbits/sec                  
+[  5]   8.00-9.00   sec  14.9 MBytes   125 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-9.00   sec   142 MBytes   133 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>EdgeRouter Lite without scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.99, port 62412
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.99 port 51770
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  10.5 MBytes  87.8 Mbits/sec                  
+[  5]   1.00-2.00   sec  15.6 MBytes   131 Mbits/sec                  
+[  5]   2.00-3.00   sec  16.5 MBytes   139 Mbits/sec                  
+[  5]   3.00-4.00   sec  16.6 MBytes   139 Mbits/sec                  
+[  5]   4.00-5.00   sec  16.6 MBytes   139 Mbits/sec                  
+[  5]   5.00-6.00   sec  17.3 MBytes   145 Mbits/sec                  
+[  5]   6.00-7.00   sec  16.0 MBytes   134 Mbits/sec                  
+[  5]   7.00-8.00   sec  18.2 MBytes   153 Mbits/sec                  
+[  5]   8.00-9.00   sec  17.9 MBytes   150 Mbits/sec                  
+[  5]   9.00-10.00  sec  17.0 MBytes   143 Mbits/sec                  
+[  5]  10.00-10.01  sec   177 KBytes   132 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.01  sec   162 MBytes   136 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>APU4 with scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.103, port 62063
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.103 port 58644
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  28.4 MBytes   238 Mbits/sec                  
+[  5]   1.00-2.00   sec  41.9 MBytes   351 Mbits/sec                  
+[  5]   2.00-3.00   sec  47.4 MBytes   397 Mbits/sec                  
+[  5]   3.00-4.00   sec  50.2 MBytes   421 Mbits/sec                  
+[  5]   4.00-5.00   sec  51.6 MBytes   433 Mbits/sec                  
+[  5]   5.00-6.00   sec  52.4 MBytes   439 Mbits/sec                  
+[  5]   6.00-7.00   sec  53.3 MBytes   447 Mbits/sec                  
+[  5]   7.00-8.00   sec  54.0 MBytes   453 Mbits/sec                  
+[  5]   8.00-9.00   sec  54.3 MBytes   456 Mbits/sec                  
+[  5]   9.00-10.00  sec  54.6 MBytes   458 Mbits/sec                  
+[  5]  10.00-10.00  sec  64.2 KBytes   451 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.00  sec   488 MBytes   409 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>APU4 without scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.103, port 60797
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.103 port 64446
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  35.2 MBytes   295 Mbits/sec                  
+[  5]   1.00-2.00   sec  45.1 MBytes   379 Mbits/sec                  
+[  5]   2.00-3.00   sec  49.9 MBytes   419 Mbits/sec                  
+[  5]   3.00-4.00   sec  51.6 MBytes   433 Mbits/sec                  
+[  5]   4.00-5.00   sec  53.6 MBytes   450 Mbits/sec                  
+[  5]   5.00-6.00   sec  52.4 MBytes   440 Mbits/sec                  
+[  5]   6.00-7.00   sec  55.9 MBytes   469 Mbits/sec                  
+[  5]   7.00-8.00   sec  56.6 MBytes   475 Mbits/sec                  
+[  5]   8.00-9.00   sec  57.0 MBytes   478 Mbits/sec                  
+[  5]   9.00-10.00  sec  57.3 MBytes   481 Mbits/sec                  
+[  5]  10.00-10.00  sec   245 KBytes   543 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.00  sec   515 MBytes   432 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>EdgeRouter 4 with scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.97, port 57379
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.97 port 54255
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  26.4 MBytes   222 Mbits/sec                  
+[  5]   1.00-2.00   sec  42.8 MBytes   359 Mbits/sec                  
+[  5]   2.00-3.00   sec  51.7 MBytes   434 Mbits/sec                  
+[  5]   3.00-4.00   sec  56.2 MBytes   472 Mbits/sec                  
+[  5]   4.00-5.00   sec  60.2 MBytes   505 Mbits/sec                  
+[  5]   5.00-6.00   sec  62.5 MBytes   524 Mbits/sec                  
+[  5]   6.00-7.00   sec  64.4 MBytes   540 Mbits/sec                  
+[  5]   7.00-8.00   sec  65.5 MBytes   549 Mbits/sec                  
+[  5]   8.00-9.00   sec  66.8 MBytes   560 Mbits/sec                  
+[  5]   9.00-10.00  sec  66.4 MBytes   557 Mbits/sec                  
+[  5]  10.00-10.00  sec   156 KBytes   515 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.00  sec   563 MBytes   472 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>EdgeRouter 4 without scrub/antispoof</p>
+
+<pre>
+<code>
+Accepted connection from 192.168.1.97, port 60739
+[  5] local 192.168.1.1 port 5201 connected to 192.168.1.97 port 60797
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  25.0 MBytes   209 Mbits/sec                  
+[  5]   1.00-2.00   sec  42.7 MBytes   358 Mbits/sec                  
+[  5]   2.00-3.00   sec  54.5 MBytes   457 Mbits/sec                  
+[  5]   3.00-4.00   sec  60.4 MBytes   507 Mbits/sec                  
+[  5]   4.00-5.00   sec  64.7 MBytes   543 Mbits/sec                  
+[  5]   5.00-6.00   sec  68.1 MBytes   571 Mbits/sec                  
+[  5]   6.00-7.00   sec  69.3 MBytes   581 Mbits/sec                  
+[  5]   7.00-8.00   sec  71.1 MBytes   596 Mbits/sec                  
+[  5]   8.00-9.00   sec  72.2 MBytes   606 Mbits/sec                  
+[  5]   9.00-10.00  sec  72.8 MBytes   611 Mbits/sec                  
+[  5]  10.00-10.00  sec   158 KBytes   552 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.00  sec   601 MBytes   504 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>I also measured the power consumption of each of these from the wall at idle and under load:</p>
+
+<ul>
+	<li><strong>EdgeRouter Lite:</strong> 6.9 watts idle, 7.4 watts max</li>
+	<li><strong>APU4:</strong> 6.4 watts idle, 7.3 watts max</li>
+	<li><strong>EdgeRouter 4:</strong> 6.9 watts idle, 7.5 watts max</li>
+</ul> 
+
+<p>There was little discernible difference in power consumption between these, and they could be within the margin of error of the device I used to measure.</p>
+
+<p><strong>Update 11-June-2021</strong>: The APU4 was on an old BIOS when tested, which did not support boosting CPU core clock speed under load. This is a feature added in v4.9.0.2, and will boost to 1.4 GHz. I updated the BIOS to v4.13.06 and re-ran the tests on the APU4, which can be seen below (tested for 60 seconds with 6 second interval):</p>
+
+<pre>
+<code>
+Connecting to host 192.168.1.1, port 5201
+[  5] local 172.16.1.3 port 4631 connected to 192.168.1.1 port 5201
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-6.00   sec   349 MBytes   488 Mbits/sec                  
+[  5]   6.00-12.00  sec   422 MBytes   590 Mbits/sec                  
+[  5]  12.00-18.00  sec   425 MBytes   594 Mbits/sec                  
+[  5]  18.00-24.00  sec   425 MBytes   595 Mbits/sec                  
+[  5]  24.00-30.00  sec   425 MBytes   595 Mbits/sec                  
+[  5]  30.00-36.00  sec   425 MBytes   594 Mbits/sec                  
+[  5]  36.00-42.00  sec   425 MBytes   595 Mbits/sec                  
+[  5]  42.00-48.01  sec   427 MBytes   597 Mbits/sec                  
+[  5]  48.01-54.01  sec   424 MBytes   592 Mbits/sec                  
+[  5]  54.01-60.01  sec   425 MBytes   594 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-60.01  sec  4.08 GBytes   583 Mbits/sec                  sender
+[  5]   0.00-60.17  sec  4.08 GBytes   582 Mbits/sec                  receiver
+</code>
+</pre>
+
+<p>Without scrub and antispoof:</p>
+<pre>
+<code>
+Connecting to host 192.168.1.1, port 5201
+[  5] local 172.16.1.3 port 4336 connected to 192.168.1.1 port 5201
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-6.00   sec   387 MBytes   541 Mbits/sec                  
+[  5]   6.00-12.00  sec   476 MBytes   665 Mbits/sec                  
+[  5]  12.00-18.00  sec   482 MBytes   675 Mbits/sec                  
+[  5]  18.00-24.00  sec   484 MBytes   676 Mbits/sec                  
+[  5]  24.00-30.00  sec   482 MBytes   675 Mbits/sec                  
+[  5]  30.00-36.00  sec   483 MBytes   676 Mbits/sec                  
+[  5]  36.00-42.00  sec   481 MBytes   672 Mbits/sec                  
+[  5]  42.00-48.00  sec   480 MBytes   671 Mbits/sec                  
+[  5]  48.00-54.00  sec   480 MBytes   670 Mbits/sec                  
+[  5]  54.00-60.00  sec   469 MBytes   655 Mbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-60.00  sec  4.59 GBytes   658 Mbits/sec                  sender
+[  5]   0.00-60.14  sec  4.59 GBytes   656 Mbits/sec                  receiver
+</code>
+</pre>
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/hardware/openbsd-router-bench
+marks.html</guid>
+        <link>http://kernelpanic.life/hardware/openbsd-router-bench
+marks.html</link>
+        <pubDate>Fri, 21 May 2021 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
+      <title>The ThinkPad X1 Carbon 9th Gen</title>
+        <description>
+        <![CDATA[
+<h2>The ThinkPad X1 Carbon 9th Gen</h2>
+<h3>14-May-2021</h3>
+<img src="/img/x1-carbon-gen9.jpg" alt="A pair of X1 Carbon Gen 9 ThinkPads">
+
+<p><strong>Year:</strong> 2021</p>
+<p><strong>CPU:</strong> 2.8 GHz Intel Core i7-1165G7 (4 physical cores, 8 logical cores with SMT)</p>
+<p><strong>Graphics:</strong> Intel Xe (Tiger Lake)</p>
+<p><strong>RAM:</strong> 16 GB</p>
+<p><strong>Storage:</strong> 256 GB Toshiba KXG6AZNV256G NVMe SSD</p>
+<p><strong>"But can it run Chrome?":</strong> Yes </p>
+<p><a href="x1c9hdr_dmesg.txt">dmesg</a>
+
+<p>My employer recently issued me a new 9th Gen X1 Carbon and I liked it enough to buy one for myself. This post will compare the two side by side.</p>
+
+<p>The company X1 comes with the 400 nit 1920x1200 display, and the i5-1145G7 CPU. The display color accuracy is noticeably improved over the T480 and T14 I have here, both of which have the low-end 1920x1080 panel offered those years. 16:10 is a nice aspect ratio and combined with the much thinner bezels, the laptop's footprint is much more compact than the 16:9 T-series. I have it running Ubuntu 21.04, and everything works as you would expect. Battery life is somewhere around 10 hours at 45% screen brightness.</p>
+
+<p>The X1 that I bought has the i7-1165G7 and the 3840x2400 HDR display. Right off the bat, you will notice that this is a heavier laptop than the 1920x1200 X1, and all of that weight is in the display. But that is a price worth paying because the display is stunning, with excellent sharpness and dazzling color accuracy. Subjectively, it's at least on par with or better than the 2018 Retina MacBook Air, and better than the 2014 15" Retina MacBook Pro. After years of staring at ThinkPad etch-a-sketch quality displays, they have finally given us a display worth looking at. Nice.</p>
+
+<p>Less nice is the keyboard lottery. The company X1 has a truly brilliant keyboard. The keys are soft but have a very tactile snap and do not wiggle at all. My X1's keyboard is apparently from a different supplier (update: not true, see below). The keys have much less of a tactile feel when pressed, and they wiggle somewhat when touched lightly. I can get used to this--and it is still a good keyboard--but after using the company X1, it is noticeably worse, and annoying. Come on Lenovo. And before you suggest it, no I am not going to just swap keyboards with the work laptop. For one thing, it would be unethical, and for another, removing the keyboard in these is quite the surgical operation. Gone are the old days when a ThinkPad keyboard could be removed with a couple screws, at least for the X1.</p>
+
+<p>While the keyboard is apparently still a hit or miss affair with Lenovo, they did improve the touchpad. It has a glassy feel reminiscent of Macs, and is pleasant to use. Purists will want to use the TrackPoint, and I replaced the standard TrackPoint cap with a concave cap made by Saoto Tsuchiya of <a href="http://www.etsy.com/shop/SaotoTech">SaotoTech</a>. I have been using these caps for years and they are quite simply the best upgrade you can do with your ThinkPad. The amount of pressure required is greatly reduced with the concave design, and they fit perfectly. If you plan to use the TrackPoint on these, I strongly recommend SaotoTech. I have no idea why Lenovo doesn't ship with this design from the factory. For middle button scrolling, I use the following /etc/X11/xorg.conf:</p>
+
+<pre>
+<code>
+Section "InputDevice"
+        Identifier  "Trackpoint"
+        Driver      "mouse"
+        Option      "Protocol" "Auto"
+        Option      "Device" "/dev/wsmouse"
+EndSection
+
+Section "InputClass"
+  Identifier    "Trackpoint"
+        MatchIsPointer  "True"
+        Option          "Emulate3Buttons"       "False"
+        Option          "EmulateWheel"  "True"
+        Option          "EmulateWheelButton"    "2"
+        Option          "XAxisMapping"  "6 7"
+        Option          "YAxisMapping"  "4 5"
+EndSection
+</code>
+</pre>
+
+<p>Software-wise, I briefly ran Arch Linux on this to test a few things, but now am running OpenBSD -current (6.9 right now) on the HDR X1 and things are mostly good. The AX201 wifi is supported by the iwx driver. I did run into a bug where this had trouble connecting to an AP that was using mixed WPA2/WPA1 and whose channel was identical to a neighboring AP with the same SSID. I have not had this issue at home with WPA2 and 5 GHz. Support was only added for the AX201 a couple weeks ago, and commits are still coming in for iwx quickly, so I expect this device will improve over time (though this could have been a buggy AP).</p>
+
+<p>The Intel Xe graphics are supported by inteldrm, and this is capable of running at full 3840x2400 resolutions smoothly. I have seen a couple graphical stutters when running Chromium on this that are not present in Firefox, which runs just fine with webrender and layers acceleration enabled. There were occasions when switching between window groups in cwm led to Xorg getting stuck, but curiously this has not happened since I stopped using oxbar. I am not sure what the cause is here, though inteldrm routinely spits errors into dmesg. Again, this is brand new hardware, so I expect this will improve. In Arch Linux, graphics were functional with xf86-video-intel, but the performance at full resolution was appalling. Using intel-media-driver was the solution.</p>
+
+<p>In OpenBSD, I run at full display resolution, and with GTK and QT apps at 2x scale, set with the following in my ~/.xsession file:</p>
+
+<pre>
+<code>
+export GDK_SCALE=2.0
+export QT_SCALE_FACTOR=2.0
+</code>
+</pre>
+
+<p>This works nicely with Firefox and I have not had any problems. It is also possible to run this at 1920x1200 set with xrandr like so:</p>
+
+<pre>
+<code>
+xrandr --output eDP-1 --mode 1920x1200
+</code>
+</pre>
+
+<p>This eliminates the need for scaling (at least 2x scaling) and everything still seems pretty sharp, but not <i>quite</i> as sharp as 3840x2400 with scaling.</p> 
+
+<p>The Dolby Atmos sound works out of the box on OpenBSD and can be controlled by the keyboard controls (actually, all of the Fn keys work out of the box). Sound quality is quite good, and a noticeable step up from the T14. Not quite as good as the newer Macs however. In Arch Linux, I had sound controlled by ALSA and it worked fine.</p>
+
+<p>Battery life in OpenBSD is reported at around 5 hours at 50% display brightness but in reality is closer to 4, whereas battery life in Arch with TLP enabled was reported at 10 hours, though in reality was more like 7. Actual power consumption in OpenBSD at idle and 50% brightness is about 11.5 watts, and this has a 57 watt-hour battery capacity. In Linux it was around 7.5 watts, and even less than that on the 1920x1200 version. The laptop runs hotter in OpenBSD compared to Linux too. This is one area where Linux is far ahead of OpenBSD on this hardware. Another area is suspend/resume support, which works fine in Linux on the 5.12 kernel, and doesn't work at all on OpenBSD. This is reportedly due to the 9th Gen lacking ACPI S3 suspend mode, as Joshua Stein <a href="http://jcs.org/2021/01/27/x1nano">reported</a> on the X1 Nano. Hibernation works with ZZZ, and that has been what I am doing instead, though it is less convenient.</p> 
+
+<p>Overall I think Lenovo has made a very good laptop, with good Linux and BSD support. I do wish there was less variation in keyboard quality, and I wish the keyboard could be swapped without basically disassembling the entire laptop. The standard 400 nit 1920x1200 display works well, and the 3840x2400 HDR display is gorgeous and completely worth the money. Hardware support in OpenBSD is coming along, and with the popularity of these amongst developers, I expect that the quirks will be worked out. It works flawlessly in Ubuntu out of the box, and with some tinkering you can get Arch to run equally as well, so this is a good choice if you are planning to run Linux.</p> 
+
+<p><strong>Update:</strong> A helpful Redditor (/u/ibmthink) recommended checking the keyboard supplier with Lenovo's <a href="http://support.lenovo.com/us/en/partslookup">parts lookup tool</a>. After inputting the serial numbers of both laptops, it turns out they both are using Chicony keyboards with the same part number (5M11C53235) and same mfg. part number (SBB0Z70654). This is disappointing, because I had hoped to eventually replace my keyboard with a better one, but if there is this much quality variance in the keyboard from the same supplier, this may not be easy.</p>
+
+<p>Additionally, the display panel EDIDs of both laptops are below.</p>
+
+<p>Company X1C9 with 1920x1200 panel:</p>
+
+<pre>
+<code>
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 0e 6f 04 14 00 00 00 00
+00 1e 01 04 a5 1e 13 78 03 12 9b a4 54 4c 9b 24
+0d 4f 53 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 35 3c 80 a0 70 b0 23 40 30 20
+36 00 2e bd 10 00 00 18 00 00 00 fd 00 30 3c 4a
+4a 0f 01 0a 20 20 20 20 20 20 00 00 00 fe 00 43
+53 4f 54 20 54 33 0a 20 20 20 20 20 00 00 00 fe
+00 4d 4e 45 30 30 37 4a 41 31 2d 31 0a 20 00 c9
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.4
+  Vendor & Product Identification:
+    Manufacturer: CSO
+    Model: 5124
+    Made in: 2020
+  Basic Display Parameters & Features:
+    Digital display
+    Bits per primary color channel: 8
+    DisplayPort interface
+    Maximum image size: 30 cm x 19 cm
+    Gamma: 2.20
+    Supported color formats: RGB 4:4:4
+    First detailed timing includes the native pixel format and preferred refresh rate
+    Display is continuous frequency
+  Color Characteristics:
+    Red  : 0.6406, 0.3291
+    Green: 0.2968, 0.6074
+    Blue : 0.1425, 0.0517
+    White: 0.3105, 0.3271
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  1920x1200   60.001 Hz   8:5    74.101 kHz 154.130 MHz (302 mm x 189 mm)
+                 Hfront   48 Hsync  32 Hback  80 Hpol N
+                 Vfront    3 Vsync   6 Vback  26 Vpol N
+  Display Range Limits:
+    Monitor ranges (Bare Limits): 48-60 Hz V, 74-74 kHz H, max dotclock 150 MHz
+    Alphanumeric Data String: 'CSOT T3'
+    Alphanumeric Data String: 'MNE007JA1-1'
+Checksum: 0xc9
+</code>
+</pre>
+
+<p>My X1C9 with the 3840x2400 HDR panel:</p>
+
+<pre>
+<code>
+edid-decode (hex):
+
+00 ff ff ff ff ff ff 00 0e 6f 03 14 00 00 00 00
+00 1e 01 04 b5 1e 13 78 03 e2 06 ae 50 42 ae 24
+11 53 58 00 00 00 01 01 01 01 01 01 01 01 01 01
+01 01 01 01 01 01 80 e8 00 a0 f0 60 50 90 30 20
+36 00 2e bd 10 00 00 18 00 00 00 fd 00 30 3c 95
+95 3c 01 0a 20 20 20 20 20 20 00 00 00 fe 00 43
+53 4f 54 20 54 33 0a 20 20 20 20 20 00 00 00 fe
+00 4d 4e 45 30 30 37 5a 41 31 2d 32 0a 20 01 6a
+
+02 03 0f 00 e3 05 80 00 e6 06 05 01 6a 6a 24 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 9a
+
+----------------
+
+Block 0, Base EDID:
+  EDID Structure Version & Revision: 1.4
+  Vendor & Product Identification:
+    Manufacturer: CSO
+    Model: 5123
+    Made in: 2020
+  Basic Display Parameters & Features:
+    Digital display
+    Bits per primary color channel: 10
+    DisplayPort interface
+    Maximum image size: 30 cm x 19 cm
+    Gamma: 2.20
+    Supported color formats: RGB 4:4:4
+    First detailed timing includes the native pixel format and preferred refresh rate
+    Display is continuous frequency
+  Color Characteristics:
+    Red  : 0.6826, 0.3144
+    Green: 0.2578, 0.6816
+    Blue : 0.1406, 0.0664
+    White: 0.3251, 0.3457
+  Established Timings I & II: none
+  Standard Timings: none
+  Detailed Timing Descriptors:
+    DTD 1:  3840x2400   60.000 Hz   8:5   148.800 kHz 595.200 MHz (302 mm x 189 mm)
+                 Hfront   48 Hsync  32 Hback  80 Hpol N
+                 Vfront    3 Vsync   6 Vback  71 Vpol N
+  Display Range Limits:
+    Monitor ranges (Bare Limits): 48-60 Hz V, 149-149 kHz H, max dotclock 600 MHz
+    Alphanumeric Data String: 'CSOT T3'
+    Alphanumeric Data String: 'MNE007ZA1-2'
+  Extension blocks: 1
+Checksum: 0x6a
+
+----------------
+
+Block 1, CTA-861 Extension Block:
+  Revision: 3
+  Native detailed modes: 0
+  Colorimetry Data Block:
+    BT2020RGB
+  HDR Static Metadata Data Block:
+    Electro optical transfer functions:
+      Traditional gamma - SDR luminance range
+      SMPTE ST2084
+    Supported static metadata descriptors:
+      Static metadata type 1
+    Desired content max luminance: 106 (496.743 cd/m^2)
+    Desired content max frame-average luminance: 106 (496.743 cd/m^2)
+    Desired content min luminance: 36 (0.099 cd/m^2)
+Checksum: 0x9a
+</code>
+</pre>
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/hardware/thinkpad-x1-carbon-g
+en9.html</guid>
+        <link>http://kernelpanic.life/hardware/thinkpad-x1-carbon-g
+en9.html</link>
+        <pubDate>Fri, 14 May 2021 05:00:00 GMT</pubDate>
+    </item>
+
+
+    <item>
+      <title>Web Rendering Proxy Server with Wireguard</title>
+        <description>
+        <![CDATA[
+<h2>Web Rendering Proxy Server with Wireguard</h2>
+<h3>8-May-2021</h3>
+
+<p>The modern web is a catastrophe, <a href="http://scholar.harvard.edu/files/mickens/files/towashitallaway.pdf">as we know</a>. Older computers increasingly find it harder and harder to handle the modern website's insatiable desire to hand you Javascript, popups, autoplaying videos, ads, malware, more Javascript, downloadable fonts, libraries, full size background images, cryptominers, and gifs.</p>
+
+<p>Web browsers used to be essentially just document viewers, and web pages were little more than documents written in a markup language (HTML) with some images here and there. The web browser today is almost an operating system. Or maybe it would be more accurate to say the operating system today is almost a <a href="http://www.google.com/chromebook/chrome-os/">web browser</a>? Either way, there is nothing driving the obsolescence of your computer faster than the demands of the modern web browser.</p>
+
+<p>Browsers such as Dillo, Netsurf, and Lynx are incredibly fast even on old hardware because they simply don't support Javascript, but this often leads to web pages that either don't work at all, or look nothing like what they are supposed to.</p> 
+
+<p>One clever way to deal with this problem is to run a modern web browser on a different machine to do the heavy rendering, then connect to that with a lightweight browser such as Dillo, Netsurf, or whatever you like to view it. This is what <a href="http://github.com/tenox7/wrp">Web Rendering Proxy</a> does. Essentially, it runs Chromium underneath to fetch and render the web page, and creates a GIF or PNG of that rendered page, with clickable elements for the links. Your old or lightweight browser then connects to this proxy to view the image. It works quite well.</p>
+
+<p>The only issue I have with this is that there is no security in the connection between your browser and the WRP server. This is fine if the server is on your local network, but it's a problem if you want to run it remotely, such as on a VPS, so that you can access it from anywhere.</p>
+
+<p>To solve this, I run WRP on a Vultr High Frequency VPS on OpenBSD, with a Wireguard tunnel securing the connection between my old laptops and the VPS. To simplify this, I have a script that will configure the VPS with all of the required packages, and set the configuration, which is below:</p>
+
+<pre>
+<code>
+#!/bin/sh
+# This script will configure an OpenBSD 6.8 or later
+# server with Wireguard and Web Rendering Proxy. It should be run as root.
+#
+# This script assumes the Wireguard server IP will be 10.1.1.1 and the
+# client (peer) IP will be 10.1.1.2. Adjust these as you desire.
+#
+# Once wireguard-tools is installed, generate the private key with `wg genkey`
+# Generate the public key with `echo privatekeygoeshere | wg pubkey`
+#
+# The private key will be placed in the /etc/wireguard/server.conf file we'll make.
+# The public key will need to be supplied to the peer.
+# Lastly, you'll need the peer's public key for that server.conf file too.
+######################################################################
+
+# Update existing packages, then install chromium and wireguard-tools
+pkg_add -u
+pkg_add chromium wireguard-tools
+
+# Download and install WRP binary
+ftp http://github.com/tenox7/wrp/releases/download/4.5.1/wrp-amd64-openbsd
+install -m 755 wrp-amd64-openbsd /usr/local/bin
+
+# Add a non-root user to run the WRP binary
+useradd wrpuser
+
+# Create wireguard interface. Modify the IP address as desired
+touch /etc/hostname.wg0
+cat <<EOF > /etc/hostname.wg0
+10.1.1.1 255.255.255.0
+!/usr/local/bin/wg setconf wg0 /etc/wireguard/server.conf
+EOF
+
+# Create wireguard conf directory and conf file. Allowed IP will be the client IP
+mkdir /etc/wireguard
+touch /etc/wireguard/server.conf
+cat <<EOF > /etc/wireguard/server.conf
+[Interface]
+PrivateKey = pasteyourserverprivatekey
+ListenPort = 51820
+
+[Peer]
+PublicKey = pasteyourclientpublickey
+AllowedIPs = 10.1.1.2/32
+EOF
+
+# Configure firewall
+
+cat <<EOF > /etc/pf.conf
+set skip on { lo, wg }
+int_ip = "10.0.0.0/8"
+
+block drop      # block stateless traffic
+pass in quick on egress proto tcp from any to egress:0 port 22
+pass in quick on egress proto udp from any to egress:0 port 51820
+pass in quick on 10.1.1.1 proto tcp from $int_ip to 10.1.1.1 port 80
+pass out
+
+block return in on ! lo0 proto tcp to port 6000:6010
+
+block return out log proto {tcp udp} user _pbuild
+EOF
+
+# Use AdGuard DNS for adblocking
+touch /etc/dhclient.conf
+echo 'prepend domain-name-servers 176.103.130.130;' >> /etc/dhclient.conf
+
+# Clean up
+rm wrp-amd64-openbsd
+echo 'Configuration done!'
+echo 'Run `wg genkey` and paste the output into the PrivateKey section of /etc/wireguard/server.conf'
+echo 'Run `echo privatekeygoeshere | wg pubkey` and provide the resulting public key to peer'
+echo 'Add the peer public key to the [Peer] section of /etc/wireguard/server.conf'
+echo 'Lastly, run `sh /etc/netstart` or reboot to apply all changes'
+</code>
+</pre>
+
+<p>The only things the script does not do is configure your Wireguard keys, or your client. But using this setup, you can have an encrypted connection to your WRP VPS and not worry about transmitting passwords in clear text.</p>
+
+<p>WRP in action rendering the full Macrumors forum in Dillo on a <a href="/hardware/titanium-powerbook-g4.html">titanium PowerBook G4</a>:</p>
+<img src="/img/wrp_wireguard.jpg" alt="Web Rendering Proxy with Dillo screenshot">
+
+<p>I found that a single CPU VPS handles the rendering side of things adequately, but a 2 CPU instance handles it better enough to be worth the extra cost if you are using this a lot.</p> 
+
+<p>The script above also lives on <a href="http://code.kernelpanic.life:3000/joe/wrpguard">code.kernelpanic.life</a> as well as <a href="https://github.com/jsf0/wrpguard">Github</a>.
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/software/web-rendering-proxy-
+wireguard.html</guid>
+        <link>http://kernelpanic.life/software/web-rendering-proxy-
+wireguard.html</link>
+        <pubDate>Sat, 08 May 2021 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
+	  <title>The IBM ThinkPad T23</title>
+  		<description>
+    	<![CDATA[
+<h2>The IBM ThinkPad T23</h2>
+<h3>07-May-2021</h3>
+
+<img src="/img/thinkpad-t23.jpg" alt="The IBM ThinkPad T23">
+
+<p><strong>Year:</strong> 2002</p>
+<p><strong>CPU:</strong> 1.13 GHz Pentium III Mobile</p>
+<p><strong>Graphics:</strong> 16 MB S3 Super Savage IX</p>
+<p><strong>RAM:</strong> 1024 MB PC133</p>
+<p><strong>Storage:</strong> 40 GB Hitachi HTS541640J9AT00</p>
+<p><strong>"But can it run Chrome?":</strong> No </p>
+
+<p>For many years, if you closed your eyes and imagined "laptop", I bet you'd think of something pretty much exactly like the T23: an enormous, all black, 4:3 shaped brick with a million ports. I like to think that anyone working at IBM in the early 2000s who mentioned the word "aesthetics" would have been fired on the spot. Yet somehow their ThinkPad line <i>did</i> look good, and the T23 is the very essence of that iconic ThinkPad design.</p>
+
+<p>This is not a thin or light laptop, and by today's standards, not a fast one. But it is uncannily reliable. This particular T23 is nearly 20 years old and the only non-original parts are the hard drive (replaced in 2015 when the original died) and the TrackPoint nub, which I finally replaced a year or two ago after the original had worn down almost all the way through the material. The RAM, keyboard, display panel, motherboard, and case are all still working just fine. There are some scratches on the lid, but no cracks anywhere.</p>
+
+<p>OpenBSD support is quite good. The Intel Pro/100 ethernet port is powered by the fxp driver. There is no wireless card in this laptop, so you can either run wireless off a USB or use a supported PCMCIA wireless card. You only get 2 USB 1.1 ports, and USB wireless is not the greatest, but a nano USB wireless adapter sits nicely out of the way, while a PCMCIA card will stick out about an inch or two from the slot.</p>
+
+<p>Ports are plentiful, and mostly at the back of the laptop, which keeps cables out of your way. It includes a DB-9 serial port, which is something I actually use rather often. Despite the existence of USB-to-Serial cables, I have found that a real serial port is sometimes the most reliable option, and the T23 is worth keeping around just for that.</p>
+
+<p>Graphics are provided by the built in 16 MB S3 Super Savage IX. This actually has DRM support in OpenBSD, but you won't like it. Even moving an xterm around is hilariously slow, so you are better off using Vesa instead of the savage driver in /etc/X11/xorg.conf. While you're in here, you will also want to set up middle button scrolling with the TrackPoint. My full xorg.conf with both of these configs is below:</p>
+
+<pre>
+<code>
+Section "InputDevice"
+        Identifier      "Trackpoint"
+        Driver          "mouse"
+        Option          "Protocol"      "Auto"
+        Option          "Device"        "/dev/wsmouse"
+EndSection
+
+Section "InputClass"
+        Identifier      "Trackpoint"
+        MatchIsPointer  "True"
+        Option  "Emulate3Buttons"       "False"
+        Option  "EmulateWheel"  "True"
+        Option  "EmulateWheelButton"    "2"
+        Option  "XAxisMapping"  "6 7"
+        Option  "YAxisMapping"  "4 5"
+EndSection
+
+Section "Device"
+        Identifier      "gfxcard"
+        Driver          "vesa"
+EndSection
+
+Section "Screen"
+        Identifier      "Screen 0"
+        Device          "gfxcard"
+        Monitor         "Monitor 0"
+        DefaultDepth    16
+EndSection
+
+Section "Monitor"
+        Identifier      "Monitor 0"
+        Option          "DPMS" "Disable"
+EndSection
+</code>
+</pre>
+
+<p>This setup has worked well for me and graphics are smooth on vesa, though 3D accleration is not something I have tried or really care about on this machine.</p>
+
+<p>Web browsers are in a similar situation as with the <a href="/hardware/titanium-powerbook-g4.html">PowerBook G4</a> at the moment, despite the fact that various Javascript capable browsers exist for the i386 architecture. The Pentium III does not have SSE2 support, which means any of the standard big browsers like Firefox, Chromium, or Otter will not work on this, not that they would be a lot of fun on such an old machine. Instead, Netsurf and Dillo are my choice for graphical browsing, and lynx is a perfectly viable option for console web usage.</p>
+
+<Other software I use is similar to the PowerBook as well. Mplayer for music, wordgrinder for word processing, mutt for email (console), or claws-mail for a graphical email client. Xpdf reads PDF files nicely if I'm unfortunate enough to have to deal with a PDF.</p>
+
+<p>Battery life on this is about 2 hours, which is shockingly good for a machine this old. The battery holds 30 Wh out of its original 38 Wh, and apmd works to control the CPU frequency. It is actually possible to use this as a laptop on battery power only in its current state. I used to take this to Rutgers and use it as my main laptop circa 2014-2015, which always elicited comments and was great fun.</p>
+    	]]>
+  		</description>
+  		<guid>http://kernelpanic.life/hardware/thinkpad-t23.html</guid>
+  		<link>http://kernelpanic.life/hardware/thinkpad-t23.html</link>
+  		<pubDate>Fri, 07 May 2021 05:00:00 GMT</pubDate>
+	</item>
+
+    <item>
+      <title>Gitea on OpenBSD</title>
+        <description>
+        <![CDATA[
+<h2>Gitea on OpenBSD</h2>
+<h3>29-April-2021</h3>
+
+<p>I wanted a self-hosted Git service, but saw how many frameworks it takes to get Gitlab up and running and immediately shut off my laptop in terror. Fortunately, there's <a href="http://gitea.com/">Gitea</a>.</p> 
+
+<p>Gitea is a self-hosted Git service that is fairly easy to setup, and provides a significantly simpler alternative to other self-hosted Git web interfaces such as Gitlab. It's written in Go and can be configured with one configuration file. Setting up an OpenBSD server running Gitea is not hard, but there are a number of things to be aware of that are not obvious.</p>
+
+<p>Installation is done the usual way:</p>
+<pre><code>
+# pkg_add gitea
+</code></pre>
+
+<p>You can enable it and start it to set the initial configuration with rcctl:</p>
+
+<pre><code>
+# rcctl -f start gitea
+</code></pre>
+
+<p>This will start Gitea listening on port 3000. Open that in a web browser and set it up as desired.</p>
+
+<p>OpenBSD changes a few defaults from a stock Gitea installation. In particular, the default configuration file is located at /etc/gitea/app.ini . However, simply starting Gitea from rcctl will <strong>not</strong> use that file by default. To force this (and I highly recommend it, because it greatly simplifies things), set the -c flag in rc.conf.local like so:</p>
+
+<pre><code>
+# rcctl enable gitea
+# rcctl set gitea flags "-c /etc/gitea/app.ini"
+</code></pre>
+
+<p>Now Gitea will use /etc/gitea/app.ini for its configuration whenever it is started by rcctl.</p>
+
+<p>The next thing I wanted was to secure the connection to Gitea with TLS. Gitea doesn't have permissions to listen on 443 directly, but I didn't really care too much about that. Instead I run it on port 3000 and run httpd on port 80 to redirect to port 3000, as well as handle Let's Encrypt verification with acme-client. A simple config for httpd gets the job done:</p>
+
+<pre><code>
+server "code.kernelpanic.life" {
+        listen on * port 80
+        location "/.well-known/acme-challenge/*" {
+                root "/acme"
+                request strip 2
+        }
+        location * {
+                block return 302 "http://$HTTP_HOST:3000$REQUEST_URI"
+        }
+}
+</code></pre>
+
+<p>You can then use acme-client to configure Let's Encrypt TLS certificates, or pkg_add certbot and use that instead. To actually make Gitea enable TLS and use your cert, you will have to set the protocol to http in /etc/gitea/app.ini and make the certs available to Gitea, as the _gitea user will not be able to read the usual location of /etc/ssl/private.</p>
+
+<p>I changed the following lines in /etc/gitea/app.ini to look like so:</p>
+
+<pre><code>
+PROTOCOL                        = http
+CERT_FILE                       = /var/gitea/custom/http/fullchain.pem
+KEY_FILE                        = /var/gitea/custom/http/key.pem
+</code></pre>
+
+<p>At this point, Gitea will run on port 3000 and use TLS with the cert/key pair found in /var/gitea/custom/http/. httpd will run on port 80 and handle future Let's Encrypt verification requests initiated by acme-client, and redirect traffic to port 3000.</p>
+
+<p>There are two other options I changed. I wanted anyone to be able to view my repositories without having to be signed in, and also make the "Explore" view the default. These lines change that:</p>
+
+<pre><code>
+REQUIRE_SIGNIN_VIEW             = false
+LANDING_PAGE                    = explore
+</code></pre>
+
+<p>There are a ton of options in /etc/gita/app.ini but this does the job for my purposes. So far, I'm pretty happy with this setup.</p>
+
+<p>You can browse my repos on my OpenBSD Gitea server here: <a href="http://code.kernelpanic.life:3000/explore/repos">code.kernelpanic.life</a></p>
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/software/gitea-on-openbsd.htm
+l</guid>
+        <link>http://kernelpanic.life/software/gitea-on-openbsd.htm
+l</link>
+        <pubDate>Thu, 29 Apr 2021 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
+      <title>Broadcast Commands in tmux</title>
+        <description>
+        <![CDATA[
+<h2>Broadcast Commands in tmux</h2>
+<h3>23-April-2021</h3>
+
+<p>I am a big fan of the <a href="http://gnome-terminator.org/">Terminator</a> terminal emulator because of its ability to both act as a multiplexer and broadcast a command to all panes simultaneously. This drastically speeds up executing the same task on multiple servers simultaneously (starting a Puppet run on  a bunch of servers at once, for example).</p>
+
+<p>However, one problem with Terminator is that it is a somewhat heavyweight application, pulling in piles of dependencies on a lean Linux or BSD install. As far as I know, is not available for macOS either. It also requires X11, which is a problem if running through a <a href="/hardware/dec-alphastation-250.html">VT220</a>. Fortunately, there's <a href="http://github.com/tmux/tmux">tmux</a>, a lightweight terminal multiplexer which can be made to broadcast to multiple panes just like Terminator, but does not have a large dependency chain, and comes in the OpenBSD base system.</p>
+
+<p>The magic is in tmux's "synchronize-panes" option, which can be toggled within a tmux session by typing the prefix combination, ctrl-b, then the colon : , which opens a prompt that can be used to set various options. The following option will toggle broadcasting to all panes:</p>
+
+<pre><code>setw synchronize-panes</code></pre> 
+
+<p>Typing that again will turn off pane synchronization, but this is a bit cumbersome. Instead of doing that each time, I made a keybinding shortcut in ~/.tmux.conf that will toggle it for me:</p>
+
+<pre>
+<code>
+bind a setw synchronize-panes
+setw -g window-status-current-format '#{?pane_synchronized,#[bg=red],}#I:#W'
+setw -g window-status-format         '#{?pane_synchronized,#[bg=red],}#I:#W'
+</code>
+</pre>
+
+<p>The top line binds the 'a' key to the synchronize panes option. To toggle it now, just do ctrl-b, then 'a'. The bottom two lines are shamelessly stolen from Jonathan Palardy's excellent <a href="http://blog.jpalardy.com/posts/tmux-synchronized-panes/">blog post</a> about the synchronize panes option in tmux. These lines set the pane borders to red when pane synchronization is on, so that you have a visual indicator of it, saving you from the potential catastrophe of inadvertently broadcasting a dangerous command when SSH'd in to multiple servers.</p>
+        ]]>
+        </description>
+        <guid>://kernelpanic.life/software/broadcast-commands-i
+n-tmux.html</guid>
+        <link>http://kernelpanic.life/software/broadcast-commands-i
+n-tmux.html</link>
+        <pubDate>Fri, 23 Apr 2021 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
+      <title>The DEC AlphaStation 250 4/266</title>
+        <description>
+        <![CDATA[
+<h2>The DEC AlphaStation 250 4/266</h2>
+<h3>17-April-2021</h3>
+
+<img src="/img/dec-alphastation-scaled.jpg" alt="The DEC AlphaStation 250 4/266">
+
+<p><strong>Year:</strong> 1995</p>
+<p><strong>CPU:</strong> 266 MHz Alpha 21064A</p>
+<p><strong>Graphics:</strong> DECchip 21030, 1280x1024, 8 bpp</p>
+<p><strong>RAM:</strong> 128 MB</p>
+<p><strong>Storage:</strong> IBM DDRS-34560 4.5GB 7.2K RPM 3.5" 50-Pin SCSI hard drive</p>
+<p><strong>"But can it run Chrome?":</strong> Of couse not </p>
+
+<p>In a society that constantly implores us to upgrade to the newest thing, it can be refreshing to see how much you can do without. One of the better ways to do that is to use an old computer.</p>
+
+<p>The DEC AlphaStation would certainly qualify as old. This particular model, the 250 4/266, was built around 1995 by the struggling, but once-giant Digital Equipment Corporation only a few years before the company's corpse was bought by Compaq in 1998, then Hewlett Packard in 2002. I have always had a fondness for the last DEC machines because they were made right before the world standardized on the x86 architecture and Windows as the default choice for workstations.</p>
+
+<p>In contrast, the AlphaStation runs DEC's 266 MHz, 64 bit Alpha-based DECchip, and was offered with the customer's choice of Digital Unix (later OSF/1), VMS, or Windows NT, which interestingly was once available for the Alpha architecture. The cost was fairly enormous, with this machine's configuration having an MSRP of over $19K in 1995 dollars.</p>
+
+<p>This particular machine was originally sold to Stanford University's library, and came to me with OSF/1 installed. Some of Stanford's original configuration files were even present on the drive when I got this, which was quite cool, but the drive made such a whirring noise that it was clearly not going to run for much longer. Sadly the bearing failed shortly thereafter, and I replaced it with an IBM drive and installed OpenBSD/alpha.</p>
+
+<p>The OSF/1 install did include X11, and the machine has a video card that is detected and supported by the tga driver in OpenBSD, but I could not get X11 to work with OSF/1, and it is apparently broken on OpenBSD/alpha, so I paired the AlphaStation with a VT220. The VT220 itself was made in 1985 and is the amber version, which I greatly prefer to the green models also offered. This came without a keyboard, but I found a DEC LK402-AA keyboard on eBay sealed in its original box, happily paid way too much for it, and now have a brand new, old keyboard to use with the terminal.</p>
+
+<p>The keyboard offers kind of an odd typing experience. These have flat steel leaf springs under the keys, with a membrane underneath that to register the keypress. Since this keyboard was never used, the keys can be quite stiff. A built-in speaker chirps on each keystroke, and an audible bell hollers at you every time the terminal bell is triggered. It's fantastic. The layout is a Unix oriented version of the LK201 keyboard, and takes some getting used to. I have not been able to figure out how to change the layout in OpenBSD, so many of the extra functions do not work, and some of the regular keys (like Esc) do not register correctly. In vi, this is annoying, but can be worked around by pressing Ctrl-[ to effectively hit Esc and change modes.</p>
+
+<p>Installing OpenBSD is not much different than on any other system. It will take quite some time to complete, but it works fine. I did not try anything fancy, like disk encryption or RAID. Ethernet is supported and works reliably, so in theory one could do anything they would do through SSH on this machine. There are no prebuilt packages, so if you want to install additional software, compiling from ports is the only option. This is not a fast process. I compiled lynx so that I could have a web browser but didn't feel the need to compile much else after seeing how long that took.</p>
+
+<p>One other issue with this machine is that the 128 MB of RAM is not enough for KARL to relink the kernel. This means that on every boot, I have to wait about 10-15 minutes for KARL to relink the kernel, furiously swapping to the hard drive as it does this, before the machine is usable. I was able to find an additional 128 MB of RAM, and theoretically this board can handle 256 MB, but space is extremely tight between the RAM sticks, and I am uneasy with trying to force anything. Rather than break something expensive, I will live with the RAM limitation for now.</p>
+
+<p>So what can you do with this? Anything that can work entirely on a console and does not require extra software outside of the base system will work the same as it does anywhere else, only slower. Text editing with vi is no problem, web browsing with lynx is relatively smooth, and tmux makes dealing with a VT220 much more functional. This whole post was written on the AlphaStation, through SSH. I also use it for C development to find inefficient code (it is very good at this!) or code that is not portable between architectures. It's fun to see how much it can do.</p>
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/hardware/dec-alphastation-250
+.html</guid>
+        <link>http://kernelpanic.life/hardware/dec-alphastation-250
+.html</link>
+        <pubDate>Sat, 17 Apr 2021 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
+      <title>The Titanium PowerBook G4</title>
+        <description>
+        <![CDATA[
+<h2>The Titanium PowerBook G4</h2>
+<h3>15-April-2021</h3>
+
+<img src="/img/titanium-powerbook-g4-scaled.jpg" alt="The Titanium PowerBook G4">
+
+<p><strong>Year:</strong> 2002</p>
+<p><strong>CPU:</strong> 1.0 GHz PowerPC 7455</p>
+<p><strong>Graphics:</strong> Mobility Radeon 9000 64 MB</p>
+<p><strong>RAM:</strong> 512 MB PC133</p>
+<p><strong>Storage:</strong> 60 GB 4200 RPM 2.5" IDE HDD</p>
+<p><strong>"But can it run Chrome?":</strong> No </p>
+
+<p>The last titanium PowerBook, released in 2002, is my favorite laptop. It is still a modern design, with thin bezels and a relatively streamlined profile, but was built when you were still allowed to put usable ports on a laptop. The black keyboard in the silvery chassis stands out, and aesthetically, is a design Apple would of course later return to many years later with the unibody laptops. It is fantastic to type with it. The ports are all at the rear, so cables are nicely out of your way, and Apple's Brave New World of dongle hell is blissfully absent. Network connectivity includes a gigabit capable ethernet port (using the gem driver in OpenBSD), a 56k modem, and an 802.11b wireless card (using the wi driver).</p>
+
+<p>I've been running OpenBSD/macppc on this and am perfectly happy with the performance. The wireless card is usable with the wi driver, though it cannot handle WPA or WPA2, so you may want to use a USB wireless device if you aren't willing to run an open or WEP wireless network. Graphics acceleration is provided with radeondrm, and works flawlessly. The battery in this is toast, so I have no idea about battery life. Probably not very good, but apmd does work to control the CPU speed.</p> 
+
+<p>The keyboard pops off easily by sliding two tabs towards you and lifting the top edge. This exposes part of the logic board, and critically, the PMU reset button in the upper right. These will downclock to 667 MHz if they do not detect a battery, and I have found that I need to reset the PMU in order for this to reliably occur. I'm sure the PMU battery is long dead  and is the likely culprit here, but resetting the PMU before booting does yield full 1.0 GHz performance.</p>
+
+<p>Besides the usual OpenFirmware settings changes, there is nothing special about installing OpenBSD on this, except that if you want to use disk encryption, there is no support for booting softraid-encrypted volumes on macppc. I made a separate encrypted softraid partition during install that is decrypted and mounted at /home/joe on every boot. The following lines in /etc/rc.securelevel do the job:</p>
+<pre>
+<code>
+bioctl -c C -l /dev/wd0m softraid0
+mount /dev/sd0a /home/joe
+</code>
+</pre>
+
+<p>Various desktop envrionments and window managers are available, but I use cwm on everything and refuse to use anything else. For this laptop, it is blazing fast and I am so used to my shortcuts that I don't want to learn any other system. That said, you can install and run something like XFCE if you choose; it's only a pkg_add away.</p>
+
+<p>For graphical web browsing, your best bet is probably Dillo or Netsurf. Dillo is quick, but does not render web pages as well as Netsurf. Lynx and other console-only browsers work great, as expected. For email, I use mutt, but claws-mail works as well if you prefer fancy graphics. The collection of macppc packages for OpenBSD is tending to dwindle, but there are many packages that will cover the basic uses.</p>
+
+<p>Playing audio is possible with mplayer, and the speakers are significantly better than those on the 2014 MacBook Pro. Progress isn't always upward.</p>
+
+<p>One annoying thing about this laptop is the single button trackpad. In OpenBSD, this only provides left click functionality, so right clicking or middle clicking is impossible. For pasting text in X11, middle clicking is essential. Fortunately, there is a workaround. I use xmodmap(1) to remap the F10 and F11 keys for middle click and right click, respectively.</p>
+
+<p>In ~/.xmodmaprc, add the following lines:</p>
+<pre>
+<code>
+keycode 76 = Pointer_Button2
+keycode 95 = Pointer_Button3
+</code>
+</pre>
+
+<p>Then, run xmodmap(1) and xkbset(1) to enable:</p>
+<pre>
+<code>
+$ xmodmap ~/.xmodmaprc
+$ xkbset m
+</code>
+</pre>
+
+<p>This could be added to a script and run on xenodm startup, or run manually if you prefer.</p>
+
+<p>So, what can you do with this in 2021? Well I have no idea about the state of OS X or Linux on these, because I have never run either. With OpenBSD at least, if you are reasonable and are willing to forego Javascript browsers, it can do most tasks. You won't be very happy if you expect it to run Firefox or Chrome and watch Youtube, and software selection is more limited. Simple web browsing, email, sysadmin tasks, development, and the like are feasible though, and this entire website was written on this laptop wtihout it being a burden. If you're willing to put in some effort, they're great laptops.</p>
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/hardware/titani
+um-powerbook-g4.html</guid>
+        <link>http://kernelpanic.life/hardware/titani
+um-powerbook-g4.html</link>
+        <pubDate>Thu, 15 Apr 2021 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
+      <title>Lazy Configuration Management</title>
+        <description>
+        <![CDATA[
+<h2>Lazy Configuration Management</h2>
+<h3>10-April-2021</h3>
+<p>I have a bad habit of buying old computers, and part of the tedium associated with this is setting up each one exactly how I want it, or applying a config that I already know I like on a new machine. Of course, there are many configuration management tools for automating configuration, such as Puppet, Ansible, Chef, and others, but they all suffer from one problem: they take effort to use, and I can't be bothered.</p>
+
+<p>I wanted something similar, but stripped to the bare minimum. Ideally such a tool would require no dependencies on the client, no agent or other extra software installed on the target machine, and not require learning any markup languages.</p>
+
+<p>The result of this was <a href="http://github.com/jsf0/standoff">standoff</a>. Since I primarily use OpenBSD, writing this in Perl (eek!) mostly solves the dependency problem, since it is included in the base system. SSH can be used for connections, and the actual config files are in INI format, so they are easy to read and understand. The only dependencies are the Perl modules Net::OpenSSH and Config::IniFiles, and nothing needs to be running or installed on the target host other than SSH and a shell.</p>
+
+<p>Config files follow a simple format. Set the target(s), any files you want to upload, and any commands you want to run. An example is below:</p>
+<pre><code>
+[Target]
+target=172.16.1.1
+ssh_key=/path/to/ssh_key
+
+[Files]
+file=httpd.conf
+
+[Commands]
+command=doas cp httpd.conf /etc
+command=doas rcctl reload httpd
+</code></pre>
+
+<p>Then, you can apply the config on the target like so:</p>
+<pre><code>$ standoff -f payload_file.ini</code></pre>
+<p>Is this better than Ansible or Puppet? No. But it's 1 fairly small Perl file, which you might even be able to understand. You can use it in weird situations, like remotely configuring Ubiquiti access points without using Ubiquiti's controller software (I don't know why you would want to do this, but you can). You don't need to learn an actual markup language to use it. If I have a situation that calls for something like Ansible but isn't worth the work to set it up, this does the job.</p>
+        ]]>
+        </description>
+        <guid>://kernelpanic.life/software/lazy-c
+onfiguration-management.html</guid>
+        <link>http://kernelpanic.life/software/lazy-c
+onfiguration-management.html</link>
+        <pubDate>Sat, 10 Apr 2021 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
+      <title>Varnish on OpenBSD 6.8 with httpd</title>
+        <description>
+        <![CDATA[
+<h2>Varnish on OpenBSD 6.8 with httpd</h2>
+<h3>09-April-2021</h3>
+<p>I spent today setting up the server for this website and decided to use Varnish as an HTTP cache with OpenBSD's built-in web server, httpd. The internet has very little information about using Varnish on OpenBSD specifically, so this post can serve to document the steps. For a simple site like this, Varnish is quite unnecessary and kind of ridiculous, but it is fun to play with it.</p>
+
+<p>Setting up httpd is easy, and it can be made even easier by copying the example configuration file /etc/examples/httpd.conf to /etc. For use with Varnish, I have httpd listening on 127.0.0.1:8080. Varnish will listen on the external IP on port 80, and use 127.0.0.1:8080 for its backend. The full config for httpd can be found below:</p>
+
+<pre><code>server "kernelpanic.life" {
+	listen on 127.0.0.1 port 8080
+	root "/htdocs/kernelpanic"
+}
+</code></pre>
+<p>That's all I need here. Of course it will need to be enabled:</p> 
+<pre><code># rcctl enable httpd</code></pre>
+<p>Varnish is available as a package, and can be installed and enabled easily:</p>
+
+<pre><code># pkg_add varnish
+# rcctl enable varnishd
+</code></pre>
+
+<p>I'm not bothering with a config file for this, but this means Varnish will need some flags set for the daemon:</p>
+<pre><code># rcctl set varnishd flags "-a :80 -b 127.0.0.1:8080 -s malloc,256m -T none"</code></pre>
+<p>That's pretty much all you need to get it working. Reboot or start the services manually, and incoming requests will hit Varnish, which will pull your website files from the httpd server running at 127.0.0.1:8080.</p>
+
+<p>By default, this won't do much logging of client requests beyond /var/www/logs/access.log but this file will only show requests from Varnish, not clients. If you want Varnish to log client requests, you need to run the varnishncsa binary. I'm starting this with the following line in /etc/rc.local:</p>
+<pre><code>varnishncsa -D -w /var/varnish/kernelpanic.life/access.log</code></pre>
+<p>This will log all requests that hit varnishd to the access.log file. </p>
+<p>So does it make a difference? Typically Varnish is used to cache dynamically generated content that does not change often, saving expensive database lookups and PHP operations. For a site that like this that is already just static HTML, it may not make a difference. To find out, I tested this post's page with <a href="http://loader.io">loader.io</a> both with and without Varnish to see if it made a difference. Each test used 10,000 simultaneous connections over 1 minute, and each test was run twice.</p>
+<p>Without Varnish (just OpenBSD's httpd, with the config file above):</p>
+<ul>
+	<li>Average response time: 66 milliseconds</li>
+	<li>Minimum response time: 33 milliseconds</li>
+	<li>Maximum response time: 102 milliseconds</li>
+</ul>
+<p>With Varnish:</p>
+<ul>
+	<li>Average response time: 33 milliseconds</li>
+	<li>Minimum response time: 33 milliseconds</li>
+	<li>Maximum response time: 70 milliseconds</li>
+</ul>
+<p>Even for this very basic static HTML site, Varnish cut the average response times in half under a heavy load. That's pretty good, and probably is limited more by the network connection from the testers to the server more than it is by the server itself.</p>
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/software/openbs
+d-varnish-httpd.html</guid>
+        <link>http://kernelpanic.life/software/openbs
+d-varnish-httpd.html</link>
+        <pubDate>Fri, 09 Apr 2021 05:00:00 GMT</pubDate>
+    </item>
+
+
+	</channel>
+</rss>
