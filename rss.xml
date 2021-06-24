@@ -16,13 +16,13 @@
 
 <p>Before beginning, it is important to note that this post does not replace any documentation. My setup below is the minimum necessary to get this going, but there are a lot of factors I won't cover. Check the latest docs, especially if you are reading this long in The Future.</p>
 
-<p>I host this site on <a href="http://www.vultr.com">Vultr</a> and one of the platform's features is BGP, which can be used with a floating IP address to achieve better availability. The basic idea is to have multiple identical instances announcing the same floating IP to Vultr's infrastructure via BGP, and have your service configured on each and listening on that floating IP. Vultr will route traffic via anycast to that announced floating IP. If one or more instances go down, traffic will continue flowing to the other instances still announcing it, ensuring that your service remains available.</p>
+<p>I host this site on <a href="https://www.vultr.com">Vultr</a> and one of the platform's features is BGP, which can be used with a floating IP address to achieve better availability. The basic idea is to have multiple identical instances announcing the same floating IP to Vultr's infrastructure via BGP, and have your service configured on each and listening on that floating IP. Vultr will route traffic via anycast to that announced floating IP. If one or more instances go down, traffic will continue flowing to the other instances still announcing it, ensuring that your service remains available.</p>
 
 <p>If you have your own IP space (/24 minimum) and ASN, you can announce your IP(s) from different datacenters, so even if an entire datacenter is down, your service will still be reachable. If you do not have your own IP address block and ASN, you can request an ASN from Vultr and use a Vultr reserved IP as your floating IP. Doing it this way will only work for instances within the same datacenter, but still provides redundancy should one or more of your instances go dark. One immediate advantage is that this allows you to upgrade and reboot an instance without disrupting reachability.</p>
 
-<p>Vultr has an excellent <a href="http://www.vultr.com/docs/high-availability-on-vultr-with-floating-ip-and-bgp">guide</a> for doing this with Linux using BIRD 1.6. It is worth reading in full, even if you are not using Linux or BIRD. If you want though, you can use BIRD on OpenBSD pretty much exactly as in that guide, though obviously using ifconfig instead of the Linux ip commands to setup the interfaces, and using lo1 instead of dummy1. This post will focus on OpenBGPD because it is in the base system, but I have used BIRD on OpenBSD to accomplish this and it works fine.</p>
+<p>Vultr has an excellent <a href="https://www.vultr.com/docs/high-availability-on-vultr-with-floating-ip-and-bgp">guide</a> for doing this with Linux using BIRD 1.6. It is worth reading in full, even if you are not using Linux or BIRD. If you want though, you can use BIRD on OpenBSD pretty much exactly as in that guide, though obviously using ifconfig instead of the Linux ip commands to setup the interfaces, and using lo1 instead of dummy1. This post will focus on OpenBGPD because it is in the base system, but I have used BIRD on OpenBSD to accomplish this and it works fine.</p>
 
-<p>To get started, open a ticket with Vultr and request that private BGP be enabled for your account. Once that is done, you can click on any instance and then click on the BGP tab to see your ASN and password. You'll also need a <a href="http://www.vultr.com/docs/vultr-reserved-ips">reserved IP</a> in the same region as the instances you want to use to announce it. This IP should not be attached to any instance; just reserve it and leave it.</p>
+<p>To get started, open a ticket with Vultr and request that private BGP be enabled for your account. Once that is done, you can click on any instance and then click on the BGP tab to see your ASN and password. You'll also need a <a href="https://www.vultr.com/docs/vultr-reserved-ips">reserved IP</a> in the same region as the instances you want to use to announce it. This IP should not be attached to any instance; just reserve it and leave it.</p>
 
 <p>Whether you are using BIRD or OpenBGPD, on OpenBSD it is necessary to enable IP forwarding for this setup to work:</p>
 
@@ -139,7 +139,7 @@ allow from ibgp
 allow to ibgp
 
 # Scrub normal and large communities relevant to our ASN from EBGP neighbors
-# http://tools.ietf.org/html/rfc7454#section-11
+# https://tools.ietf.org/html/rfc7454#section-11
 match from ebgp set { large-community delete $ASN:*:* }
 
 # filter out prefixes longer than 24 or shorter than 8 bits for IPv4
@@ -148,7 +148,7 @@ allow from any inet prefixlen 8 - 24
 allow from any inet6 prefixlen 16 - 48
 
 # Honor requests to gracefully shutdown BGP sessions
-# http://tools.ietf.org/html/rfc8326
+# https://tools.ietf.org/html/rfc8326
 match from any community GRACEFUL_SHUTDOWN set { localpref 0 }
 
 deny quick from any prefix-set bogons
@@ -159,7 +159,7 @@ deny quick from ebgp ovs invalid
 # filter bogon AS numbers
 # AS_TRANS (23456) is not supposed to show up in any path and indicates a
 # misconfiguration. Additionally Private or Reserved ASNs have no place in
-# the public DFZ. http://www.iana.org/assignments/as-numbers/as-numbers.xhtml
+# the public DFZ. https://www.iana.org/assignments/as-numbers/as-numbers.xhtml
 deny quick from any AS 23456
 deny quick from any AS 64496 - 131071
 deny quick from any AS 4200000000 - 4294967295
@@ -214,10 +214,8 @@ Vultr                   64515     137169         64     0 00:30:18 832571
 <p>This all sounds like much more work than it really is. Once you have a working bgpd.conf, you can copy it to the rest of your instances easily to get them up and running. One last thing I do is enable automatic backups on each instance in this group and reserve their public IPs. Should anything happen to an instance, this will let you destroy it and deploy a backup with the same IP address, saving you the trouble of having to configure manually again or change bgpd.conf to accomodate a new IP.</p>
         ]]>
         </description>
-        <guid>http://kernelpanic.life/software/high-availability-wi
-th-openbgpd-on-openbsd.html</guid>
-        <link>http://kernelpanic.life/software/high-availability-wi
-th-openbgpd-on-openbsd.html</link>
+        <guid>http://kernelpanic.life/software/high-availability-with-openbgpd-on-openbsd.html</guid>
+        <link>http://kernelpanic.life/software/high-availability-with-openbgpd-on-openbsd.html</link>
         <pubDate>Sat, 19 Jun 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -263,7 +261,7 @@ th-openbgpd-on-openbsd.html</link>
 
 <p>Sometimes it can be useful to copy the backup config over to /etc/pf.conf so that it persists across a reboot. Doing this in a one liner is certainly possible, but involves more typing, and I am too lazy to do that.</p>
 
-<p>I wanted a somewhat more robust and permanent solution than this that I could modify in the future, that also did not involve cron(8) in any way. Enter <a href="http://github.com/jsf0/rpfload">rpfload</a>, a simple Perl wrapper around pfctl(8) that handles all of the above.</p>
+<p>I wanted a somewhat more robust and permanent solution than this that I could modify in the future, that also did not involve cron(8) in any way. Enter <a href="https://github.com/jsf0/rpfload">rpfload</a>, a simple Perl wrapper around pfctl(8) that handles all of the above.</p>
 
 <p>rpfload can be used to load /etc/pf.conf and also automatically rollback to the backup file after a configurable period of time:</p>
 
@@ -289,13 +287,11 @@ th-openbgpd-on-openbsd.html</link>
 
 <p>There are valid criticisms. It may be unnecessary if you don't care about logging, switching configs, or other facy things. It is written in Perl, which some people hate. Worse, it was written in Perl by <i>me</i>, a non-Perl-programmer, so the code is not perfect. Doubtless you can think of others.</p>
 
-<p>But it solves one of my problems exactly how I wanted, has no external dependencies in OpenBSD, and I think I might even understand it. That's all I wanted. You can get it <a href="http://github.com/jsf0/rpfload">here</a></p>
+<p>But it solves one of my problems exactly how I wanted, has no external dependencies in OpenBSD, and I think I might even understand it. That's all I wanted. You can get it <a href="https://github.com/jsf0/rpfload">here</a></p>
         ]]>
         </description>
-        <guid>http://kernelpanic.life/software/rolling-back-openbsd
--pf-changes.html</guid>
-        <link>http://kernelpanic.life/software/rolling-back-openbsd
--pf-changes.html</link>
+        <guid>http://kernelpanic.life/software/rolling-back-openbsd-pf-changes.html</guid>
+        <link>http://kernelpanic.life/software/rolling-back-openbsd-pf-changes.html</link>
         <pubDate>Sat, 05 Jun 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -318,10 +314,8 @@ th-openbgpd-on-openbsd.html</link>
 <p>Fortunately, there's an easy solution: don't let Terminator use DBus. Go to preferences, uncheck "DBus server", done. Now "broadcast all" will only send your commands to the current window and its panes. You other Terminator sessions will be untouched.</p>
         ]]>
         </description>
-        <guid>http://kernelpanic.life/software/safely-broadcasting-
-all-terminator.html</guid>
-        <link>http://kernelpanic.life/software/safely-broadcasting-
-all-terminator.html</link>
+        <guid>http://kernelpanic.life/software/safely-broadcasting-all-terminator.html</guid>
+        <link>http://kernelpanic.life/software/safely-broadcasting-all-terminator.html</link>
         <pubDate>Thu, 03 Jun 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -332,7 +326,7 @@ all-terminator.html</link>
 <h2>OpenBSD 6.9 veb vs bridge Benchmarks</h2>
 <h3>29-May-2021</h3>
 
-<p>OpenBSD recently introduced a new virtual ethernet bridge, called <a href="http://marc.info/?l=openbsd-tech&m=161335364329307">veb(4)</a> that can replace bridge(4) for use as a layer 2 switch. David Gwynne's email introducing veb(4) explains the differences far better than I could, but I was interested in testing the forwarding performance of veb(4) when compared with bridge(4).</p>
+<p>OpenBSD recently introduced a new virtual ethernet bridge, called <a href="https://marc.info/?l=openbsd-tech&m=161335364329307">veb(4)</a> that can replace bridge(4) for use as a layer 2 switch. David Gwynne's email introducing veb(4) explains the differences far better than I could, but I was interested in testing the forwarding performance of veb(4) when compared with bridge(4).</p>
 
 <p>For testing this, I used the EdgeRouter 4, running OpenBSD 6.9. It has 4 cores, and performance is comparable to the APU4 from what I have seen when doing <a href="/hardware/openbsd-router-benchmarks.html">router benchmarks</a>. I gave it a very basic configuration, which can be seen below:</p>
 
@@ -473,8 +467,8 @@ Accepted connection from 172.16.1.2, port 4527
 <p>Update: /u/Kernigh pointed out that veb(4) was not sending traffic through pf in the tests above, whereas bridge(4) was. This was fixed and the test run again.</p>
         ]]>
         </description>
-        <guid></guid>
-        <link></link>
+        <guid>http://kernelpanic.life/hardware/openbsd-veb-vs-bridge-benchmarks.html</guid>
+        <link>http://kernelpanic.life/hardware/openbsd-veb-vs-bridge-benchmarks.html</link>
         <pubDate>Sat, 29 May 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -497,7 +491,7 @@ Accepted connection from 172.16.1.2, port 4527
 	<li><strong>Supermicro E300-8D:</strong> quad core 2.2 GHz Intel Xeon D-1518 (SMT disabled), Intel I210 ethernet with em driver</li>
 </ul>
 
-<p>All of these routers are running OpenBSD 6.9 and are set up exactly as described in the <a href="http://www.openbsd.org/faq/pf/example1.html">Building a Router</a> FAQ page. There are lots of tweaks people do for performance, but I did not test any of them. What you see in the guide is what you get. CPU frequency was set at the maximum via apmd, where applicable.</p>
+<p>All of these routers are running OpenBSD 6.9 and are set up exactly as described in the <a href="https://www.openbsd.org/faq/pf/example1.html">Building a Router</a> FAQ page. There are lots of tweaks people do for performance, but I did not test any of them. What you see in the guide is what you get. CPU frequency was set at the maximum via apmd, where applicable.</p>
 
 <p>Testing was done from a T14 running Ubuntu 20.04 with 3 runs at Speedtest.net using the Vultr speed test server. This is not perfect as it only tests web traffic, so smaller or larger packet sizes than what you find in web traffic are not tested, nor is UDP tested either. Since this is going to an external server outside my network, it also sends that traffic over other carriers, so some of this is at the mercy of the route. But this is not meant to be scientific, and probably represents how most people will use their router anyway.</p>
 
@@ -719,10 +713,8 @@ Connecting to host 192.168.1.1, port 5201
 </pre>
         ]]>
         </description>
-        <guid>http://kernelpanic.life/hardware/openbsd-router-bench
-marks.html</guid>
-        <link>http://kernelpanic.life/hardware/openbsd-router-bench
-marks.html</link>
+        <guid>http://kernelpanic.life/hardware/openbsd-router-benchmarks.html</guid>
+        <link>http://kernelpanic.life/hardware/openbsd-router-benchmarks.html</link>
         <pubDate>Fri, 21 May 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -750,7 +742,7 @@ marks.html</link>
 
 <p>Less nice is the keyboard lottery. The company X1 has a truly brilliant keyboard. The keys are soft but have a very tactile snap and do not wiggle at all. My X1's keyboard is apparently from a different supplier (update: not true, see below). The keys have much less of a tactile feel when pressed, and they wiggle somewhat when touched lightly. I can get used to this--and it is still a good keyboard--but after using the company X1, it is noticeably worse, and annoying. Come on Lenovo. And before you suggest it, no I am not going to just swap keyboards with the work laptop. For one thing, it would be unethical, and for another, removing the keyboard in these is quite the surgical operation. Gone are the old days when a ThinkPad keyboard could be removed with a couple screws, at least for the X1.</p>
 
-<p>While the keyboard is apparently still a hit or miss affair with Lenovo, they did improve the touchpad. It has a glassy feel reminiscent of Macs, and is pleasant to use. Purists will want to use the TrackPoint, and I replaced the standard TrackPoint cap with a concave cap made by Saoto Tsuchiya of <a href="http://www.etsy.com/shop/SaotoTech">SaotoTech</a>. I have been using these caps for years and they are quite simply the best upgrade you can do with your ThinkPad. The amount of pressure required is greatly reduced with the concave design, and they fit perfectly. If you plan to use the TrackPoint on these, I strongly recommend SaotoTech. I have no idea why Lenovo doesn't ship with this design from the factory. For middle button scrolling, I use the following /etc/X11/xorg.conf:</p>
+<p>While the keyboard is apparently still a hit or miss affair with Lenovo, they did improve the touchpad. It has a glassy feel reminiscent of Macs, and is pleasant to use. Purists will want to use the TrackPoint, and I replaced the standard TrackPoint cap with a concave cap made by Saoto Tsuchiya of <a href="https://www.etsy.com/shop/SaotoTech">SaotoTech</a>. I have been using these caps for years and they are quite simply the best upgrade you can do with your ThinkPad. The amount of pressure required is greatly reduced with the concave design, and they fit perfectly. If you plan to use the TrackPoint on these, I strongly recommend SaotoTech. I have no idea why Lenovo doesn't ship with this design from the factory. For middle button scrolling, I use the following /etc/X11/xorg.conf:</p>
 
 <pre>
 <code>
@@ -802,7 +794,7 @@ xrandr --output eDP-1 --mode 1920x1200
 
 <p>Overall I think Lenovo has made a very good laptop, with good Linux and BSD support. I do wish there was less variation in keyboard quality, and I wish the keyboard could be swapped without basically disassembling the entire laptop. The standard 400 nit 1920x1200 display works well, and the 3840x2400 HDR display is gorgeous and completely worth the money. Hardware support in OpenBSD is coming along, and with the popularity of these amongst developers, I expect that the quirks will be worked out. It works flawlessly in Ubuntu out of the box, and with some tinkering you can get Arch to run equally as well, so this is a good choice if you are planning to run Linux.</p> 
 
-<p><strong>Update:</strong> A helpful Redditor (/u/ibmthink) recommended checking the keyboard supplier with Lenovo's <a href="http://support.lenovo.com/us/en/partslookup">parts lookup tool</a>. After inputting the serial numbers of both laptops, it turns out they both are using Chicony keyboards with the same part number (5M11C53235) and same mfg. part number (SBB0Z70654). This is disappointing, because I had hoped to eventually replace my keyboard with a better one, but if there is this much quality variance in the keyboard from the same supplier, this may not be easy.</p>
+<p><strong>Update:</strong> A helpful Redditor (/u/ibmthink) recommended checking the keyboard supplier with Lenovo's <a href="https://support.lenovo.com/us/en/partslookup">parts lookup tool</a>. After inputting the serial numbers of both laptops, it turns out they both are using Chicony keyboards with the same part number (5M11C53235) and same mfg. part number (SBB0Z70654). This is disappointing, because I had hoped to eventually replace my keyboard with a better one, but if there is this much quality variance in the keyboard from the same supplier, this may not be easy.</p>
 
 <p>Additionally, the display panel EDIDs of both laptops are below.</p>
 
@@ -937,10 +929,8 @@ Checksum: 0x9a
 </pre>
         ]]>
         </description>
-        <guid>http://kernelpanic.life/hardware/thinkpad-x1-carbon-g
-en9.html</guid>
-        <link>http://kernelpanic.life/hardware/thinkpad-x1-carbon-g
-en9.html</link>
+        <guid>http://kernelpanic.life/hardware/thinkpad-x1-carbon-gen9.html</guid>
+        <link>http://kernelpanic.life/hardware/thinkpad-x1-carbon-gen9.html</link>
         <pubDate>Fri, 14 May 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -952,13 +942,13 @@ en9.html</link>
 <h2>Web Rendering Proxy Server with Wireguard</h2>
 <h3>8-May-2021</h3>
 
-<p>The modern web is a catastrophe, <a href="http://scholar.harvard.edu/files/mickens/files/towashitallaway.pdf">as we know</a>. Older computers increasingly find it harder and harder to handle the modern website's insatiable desire to hand you Javascript, popups, autoplaying videos, ads, malware, more Javascript, downloadable fonts, libraries, full size background images, cryptominers, and gifs.</p>
+<p>The modern web is a catastrophe, <a href="https://scholar.harvard.edu/files/mickens/files/towashitallaway.pdf">as we know</a>. Older computers increasingly find it harder and harder to handle the modern website's insatiable desire to hand you Javascript, popups, autoplaying videos, ads, malware, more Javascript, downloadable fonts, libraries, full size background images, cryptominers, and gifs.</p>
 
-<p>Web browsers used to be essentially just document viewers, and web pages were little more than documents written in a markup language (HTML) with some images here and there. The web browser today is almost an operating system. Or maybe it would be more accurate to say the operating system today is almost a <a href="http://www.google.com/chromebook/chrome-os/">web browser</a>? Either way, there is nothing driving the obsolescence of your computer faster than the demands of the modern web browser.</p>
+<p>Web browsers used to be essentially just document viewers, and web pages were little more than documents written in a markup language (HTML) with some images here and there. The web browser today is almost an operating system. Or maybe it would be more accurate to say the operating system today is almost a <a href="https://www.google.com/chromebook/chrome-os/">web browser</a>? Either way, there is nothing driving the obsolescence of your computer faster than the demands of the modern web browser.</p>
 
 <p>Browsers such as Dillo, Netsurf, and Lynx are incredibly fast even on old hardware because they simply don't support Javascript, but this often leads to web pages that either don't work at all, or look nothing like what they are supposed to.</p> 
 
-<p>One clever way to deal with this problem is to run a modern web browser on a different machine to do the heavy rendering, then connect to that with a lightweight browser such as Dillo, Netsurf, or whatever you like to view it. This is what <a href="http://github.com/tenox7/wrp">Web Rendering Proxy</a> does. Essentially, it runs Chromium underneath to fetch and render the web page, and creates a GIF or PNG of that rendered page, with clickable elements for the links. Your old or lightweight browser then connects to this proxy to view the image. It works quite well.</p>
+<p>One clever way to deal with this problem is to run a modern web browser on a different machine to do the heavy rendering, then connect to that with a lightweight browser such as Dillo, Netsurf, or whatever you like to view it. This is what <a href="https://github.com/tenox7/wrp">Web Rendering Proxy</a> does. Essentially, it runs Chromium underneath to fetch and render the web page, and creates a GIF or PNG of that rendered page, with clickable elements for the links. Your old or lightweight browser then connects to this proxy to view the image. It works quite well.</p>
 
 <p>The only issue I have with this is that there is no security in the connection between your browser and the WRP server. This is fine if the server is on your local network, but it's a problem if you want to run it remotely, such as on a VPS, so that you can access it from anywhere.</p>
 
@@ -986,7 +976,7 @@ pkg_add -u
 pkg_add chromium wireguard-tools
 
 # Download and install WRP binary
-ftp http://github.com/tenox7/wrp/releases/download/4.5.1/wrp-amd64-openbsd
+ftp https://github.com/tenox7/wrp/releases/download/4.5.1/wrp-amd64-openbsd
 install -m 755 wrp-amd64-openbsd /usr/local/bin
 
 # Add a non-root user to run the WRP binary
@@ -1050,13 +1040,11 @@ echo 'Lastly, run `sh /etc/netstart` or reboot to apply all changes'
 
 <p>I found that a single CPU VPS handles the rendering side of things adequately, but a 2 CPU instance handles it better enough to be worth the extra cost if you are using this a lot.</p> 
 
-<p>The script above also lives on <a href="http://code.kernelpanic.life:3000/joe/wrpguard">code.kernelpanic.life</a> as well as <a href="https://github.com/jsf0/wrpguard">Github</a>.
+<p>The script above also lives on <a href="https://code.kernelpanic.life:3000/joe/wrpguard">code.kernelpanic.life</a> as well as <a href="https://github.com/jsf0/wrpguard">Github</a>.
         ]]>
         </description>
-        <guid>http://kernelpanic.life/software/web-rendering-proxy-
-wireguard.html</guid>
-        <link>http://kernelpanic.life/software/web-rendering-proxy-
-wireguard.html</link>
+        <guid>http://kernelpanic.life/software/web-rendering-proxy-wireguard.html</guid>
+        <link>http://kernelpanic.life/software/web-rendering-proxy-wireguard.html</link>
         <pubDate>Sat, 08 May 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -1145,7 +1133,7 @@ EndSection
 <h2>Gitea on OpenBSD</h2>
 <h3>29-April-2021</h3>
 
-<p>I wanted a self-hosted Git service, but saw how many frameworks it takes to get Gitlab up and running and immediately shut off my laptop in terror. Fortunately, there's <a href="http://gitea.com/">Gitea</a>.</p> 
+<p>I wanted a self-hosted Git service, but saw how many frameworks it takes to get Gitlab up and running and immediately shut off my laptop in terror. Fortunately, there's <a href="https://gitea.com/">Gitea</a>.</p> 
 
 <p>Gitea is a self-hosted Git service that is fairly easy to setup, and provides a significantly simpler alternative to other self-hosted Git web interfaces such as Gitlab. It's written in Go and can be configured with one configuration file. Setting up an OpenBSD server running Gitea is not hard, but there are a number of things to be aware of that are not obvious.</p>
 
@@ -1207,13 +1195,11 @@ LANDING_PAGE                    = explore
 
 <p>There are a ton of options in /etc/gita/app.ini but this does the job for my purposes. So far, I'm pretty happy with this setup.</p>
 
-<p>You can browse my repos on my OpenBSD Gitea server here: <a href="http://code.kernelpanic.life:3000/explore/repos">code.kernelpanic.life</a></p>
+<p>You can browse my repos on my OpenBSD Gitea server here: <a href="https://code.kernelpanic.life:3000/explore/repos">code.kernelpanic.life</a></p>
         ]]>
         </description>
-        <guid>http://kernelpanic.life/software/gitea-on-openbsd.htm
-l</guid>
-        <link>http://kernelpanic.life/software/gitea-on-openbsd.htm
-l</link>
+        <guid>http://kernelpanic.life/software/gitea-on-openbsd.html</guid>
+        <link>http://kernelpanic.life/software/gitea-on-openbsd.html</link>
         <pubDate>Thu, 29 Apr 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -1224,9 +1210,9 @@ l</link>
 <h2>Broadcast Commands in tmux</h2>
 <h3>23-April-2021</h3>
 
-<p>I am a big fan of the <a href="http://gnome-terminator.org/">Terminator</a> terminal emulator because of its ability to both act as a multiplexer and broadcast a command to all panes simultaneously. This drastically speeds up executing the same task on multiple servers simultaneously (starting a Puppet run on  a bunch of servers at once, for example).</p>
+<p>I am a big fan of the <a href="https://gnome-terminator.org/">Terminator</a> terminal emulator because of its ability to both act as a multiplexer and broadcast a command to all panes simultaneously. This drastically speeds up executing the same task on multiple servers simultaneously (starting a Puppet run on  a bunch of servers at once, for example).</p>
 
-<p>However, one problem with Terminator is that it is a somewhat heavyweight application, pulling in piles of dependencies on a lean Linux or BSD install. As far as I know, is not available for macOS either. It also requires X11, which is a problem if running through a <a href="/hardware/dec-alphastation-250.html">VT220</a>. Fortunately, there's <a href="http://github.com/tmux/tmux">tmux</a>, a lightweight terminal multiplexer which can be made to broadcast to multiple panes just like Terminator, but does not have a large dependency chain, and comes in the OpenBSD base system.</p>
+<p>However, one problem with Terminator is that it is a somewhat heavyweight application, pulling in piles of dependencies on a lean Linux or BSD install. As far as I know, is not available for macOS either. It also requires X11, which is a problem if running through a <a href="/hardware/dec-alphastation-250.html">VT220</a>. Fortunately, there's <a href="https://github.com/tmux/tmux">tmux</a>, a lightweight terminal multiplexer which can be made to broadcast to multiple panes just like Terminator, but does not have a large dependency chain, and comes in the OpenBSD base system.</p>
 
 <p>The magic is in tmux's "synchronize-panes" option, which can be toggled within a tmux session by typing the prefix combination, ctrl-b, then the colon : , which opens a prompt that can be used to set various options. The following option will toggle broadcasting to all panes:</p>
 
@@ -1242,13 +1228,11 @@ setw -g window-status-format         '#{?pane_synchronized,#[bg=red],}#I:#W'
 </code>
 </pre>
 
-<p>The top line binds the 'a' key to the synchronize panes option. To toggle it now, just do ctrl-b, then 'a'. The bottom two lines are shamelessly stolen from Jonathan Palardy's excellent <a href="http://blog.jpalardy.com/posts/tmux-synchronized-panes/">blog post</a> about the synchronize panes option in tmux. These lines set the pane borders to red when pane synchronization is on, so that you have a visual indicator of it, saving you from the potential catastrophe of inadvertently broadcasting a dangerous command when SSH'd in to multiple servers.</p>
+<p>The top line binds the 'a' key to the synchronize panes option. To toggle it now, just do ctrl-b, then 'a'. The bottom two lines are shamelessly stolen from Jonathan Palardy's excellent <a href="https://blog.jpalardy.com/posts/tmux-synchronized-panes/">blog post</a> about the synchronize panes option in tmux. These lines set the pane borders to red when pane synchronization is on, so that you have a visual indicator of it, saving you from the potential catastrophe of inadvertently broadcasting a dangerous command when SSH'd in to multiple servers.</p>
         ]]>
         </description>
-        <guid>://kernelpanic.life/software/broadcast-commands-i
-n-tmux.html</guid>
-        <link>http://kernelpanic.life/software/broadcast-commands-i
-n-tmux.html</link>
+        <guid>http://kernelpanic.life/software/broadcast-commands-in-tmux.html</guid>
+        <link>http://kernelpanic.life/software/broadcast-commands-in-tmux.html</link>
         <pubDate>Fri, 23 Apr 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -1287,10 +1271,8 @@ n-tmux.html</link>
 <p>So what can you do with this? Anything that can work entirely on a console and does not require extra software outside of the base system will work the same as it does anywhere else, only slower. Text editing with vi is no problem, web browsing with lynx is relatively smooth, and tmux makes dealing with a VT220 much more functional. This whole post was written on the AlphaStation, through SSH. I also use it for C development to find inefficient code (it is very good at this!) or code that is not portable between architectures. It's fun to see how much it can do.</p>
         ]]>
         </description>
-        <guid>http://kernelpanic.life/hardware/dec-alphastation-250
-.html</guid>
-        <link>http://kernelpanic.life/hardware/dec-alphastation-250
-.html</link>
+        <guid>http://kernelpanic.life/hardware/dec-alphastation-250.html</guid>
+        <link>http://kernelpanic.life/hardware/dec-alphastation-250.html</link>
         <pubDate>Sat, 17 Apr 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -1353,10 +1335,8 @@ $ xkbset m
 <p>So, what can you do with this in 2021? Well I have no idea about the state of OS X or Linux on these, because I have never run either. With OpenBSD at least, if you are reasonable and are willing to forego Javascript browsers, it can do most tasks. You won't be very happy if you expect it to run Firefox or Chrome and watch Youtube, and software selection is more limited. Simple web browsing, email, sysadmin tasks, development, and the like are feasible though, and this entire website was written on this laptop wtihout it being a burden. If you're willing to put in some effort, they're great laptops.</p>
         ]]>
         </description>
-        <guid>http://kernelpanic.life/hardware/titani
-um-powerbook-g4.html</guid>
-        <link>http://kernelpanic.life/hardware/titani
-um-powerbook-g4.html</link>
+        <guid>http://kernelpanic.life/hardware/titanium-powerbook-g4.html</guid>
+        <link>http://kernelpanic.life/hardware/titanium-powerbook-g4.html</link>
         <pubDate>Thu, 15 Apr 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -1391,10 +1371,8 @@ command=doas rcctl reload httpd
 <p>Is this better than Ansible or Puppet? No. But it's 1 fairly small Perl file, which you might even be able to understand. You can use it in weird situations, like remotely configuring Ubiquiti access points without using Ubiquiti's controller software (I don't know why you would want to do this, but you can). You don't need to learn an actual markup language to use it. If I have a situation that calls for something like Ansible but isn't worth the work to set it up, this does the job.</p>
         ]]>
         </description>
-        <guid>://kernelpanic.life/software/lazy-c
-onfiguration-management.html</guid>
-        <link>http://kernelpanic.life/software/lazy-c
-onfiguration-management.html</link>
+        <guid>://kernelpanic.life/software/lazy-configuration-management.html</guid>
+        <link>http://kernelpanic.life/software/lazy-configuration-management.html</link>
         <pubDate>Sat, 10 Apr 2021 05:00:00 GMT</pubDate>
     </item>
 
@@ -1428,7 +1406,7 @@ onfiguration-management.html</link>
 <p>By default, this won't do much logging of client requests beyond /var/www/logs/access.log but this file will only show requests from Varnish, not clients. If you want Varnish to log client requests, you need to run the varnishncsa binary. I'm starting this with the following line in /etc/rc.local:</p>
 <pre><code>varnishncsa -D -w /var/varnish/kernelpanic.life/access.log</code></pre>
 <p>This will log all requests that hit varnishd to the access.log file. </p>
-<p>So does it make a difference? Typically Varnish is used to cache dynamically generated content that does not change often, saving expensive database lookups and PHP operations. For a site that like this that is already just static HTML, it may not make a difference. To find out, I tested this post's page with <a href="http://loader.io">loader.io</a> both with and without Varnish to see if it made a difference. Each test used 10,000 simultaneous connections over 1 minute, and each test was run twice.</p>
+<p>So does it make a difference? Typically Varnish is used to cache dynamically generated content that does not change often, saving expensive database lookups and PHP operations. For a site that like this that is already just static HTML, it may not make a difference. To find out, I tested this post's page with <a href="https://loader.io">loader.io</a> both with and without Varnish to see if it made a difference. Each test used 10,000 simultaneous connections over 1 minute, and each test was run twice.</p>
 <p>Without Varnish (just OpenBSD's httpd, with the config file above):</p>
 <ul>
 	<li>Average response time: 66 milliseconds</li>
@@ -1444,10 +1422,8 @@ onfiguration-management.html</link>
 <p>Even for this very basic static HTML site, Varnish cut the average response times in half under a heavy load. That's pretty good, and probably is limited more by the network connection from the testers to the server more than it is by the server itself.</p>
         ]]>
         </description>
-        <guid>http://kernelpanic.life/software/openbs
-d-varnish-httpd.html</guid>
-        <link>http://kernelpanic.life/software/openbs
-d-varnish-httpd.html</link>
+        <guid>http://kernelpanic.life/software/openbsd-varnish-httpd.html</guid>
+        <link>http://kernelpanic.life/software/openbsd-varnish-httpd.html</link>
         <pubDate>Fri, 09 Apr 2021 05:00:00 GMT</pubDate>
     </item>
 
