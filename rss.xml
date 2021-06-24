@@ -1371,7 +1371,7 @@ command=doas rcctl reload httpd
 <p>Is this better than Ansible or Puppet? No. But it's 1 fairly small Perl file, which you might even be able to understand. You can use it in weird situations, like remotely configuring Ubiquiti access points without using Ubiquiti's controller software (I don't know why you would want to do this, but you can). You don't need to learn an actual markup language to use it. If I have a situation that calls for something like Ansible but isn't worth the work to set it up, this does the job.</p>
         ]]>
         </description>
-        <guid>://kernelpanic.life/software/lazy-configuration-management.html</guid>
+        <guid>http://kernelpanic.life/software/lazy-configuration-management.html</guid>
         <link>http://kernelpanic.life/software/lazy-configuration-management.html</link>
         <pubDate>Sat, 10 Apr 2021 05:00:00 GMT</pubDate>
     </item>
