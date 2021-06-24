@@ -732,7 +732,7 @@ Connecting to host 192.168.1.1, port 5201
 <p><strong>RAM:</strong> 16 GB</p>
 <p><strong>Storage:</strong> 256 GB Toshiba KXG6AZNV256G NVMe SSD</p>
 <p><strong>"But can it run Chrome?":</strong> Yes </p>
-<p><a href="x1c9hdr_dmesg.txt">dmesg</a>
+<p><a href="/hardware/x1c9hdr_dmesg.txt">dmesg</a>
 
 <p>My employer recently issued me a new 9th Gen X1 Carbon and I liked it enough to buy one for myself. This post will compare the two side by side.</p>
 
