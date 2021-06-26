@@ -212,6 +212,7 @@ Vultr                   64515     137169         64     0 00:30:18 832571
 
 <p>This all sounds like much more work than it really is. Once you have a working bgpd.conf, you can copy it to the rest of your instances easily to get them up and running. One last thing I do is enable automatic backups on each instance in this group and reserve their public IPs. Should anything happen to an instance, this will let you destroy it and deploy a backup with the same IP address, saving you the trouble of having to configure manually again or change bgpd.conf to accomodate a new IP.</p>
 
+<p><strong>26-June-2021:</strong> For more on the practical considerations of running a cluster like this, such as handling TLS certificates with Let's Encrypt, see the <a href="/software/high-availability-in-practice-with-openbsd.html">follow-up</a> to this post.</p>
 <br>
 <script src="https://utteranc.es/client.js"
         repo="jsf0/kernelpanic.life"
