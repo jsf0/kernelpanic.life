@@ -7,6 +7,43 @@
     <atom:link href="http://kernelpanic.life/rss.xml" rel="self" type="application/rss+xml" />
 
     <item>
+      <title>A Week with an AlphaStation: The Old Computer Challenge</title>
+        <description>
+        <![CDATA[
+<p>The week is over, so here are some closing thoughts on the <a href="https://dataswamp.org/~solene/2021-07-07-old-computer-challenge.html">Old Computer Challenge</a>. Part 1 is <a href="/misc/old-computer-challenge-and-why-i-need-it.html">here</a></p>
+
+<p>I spent the past week using nothing but a <a href="/hardware/dec-alphastation-250.html">DEC AlphaStation</a> and the experience was interesting and mostly enjoyable. This particular AlphaStation runs OpenBSD -current, which lacks X11 support on alpha, so I use a VT220 terminal with it. It has 128 MB of RAM, and a 266 MHz Alpha-based DECchip 21030 CPU. Support is pretty good in OpenBSD besides the lack of X11, but I quite like the VT220 and would probably not run X11 even if I could.</p>
+
+<p>The first thing that became noticeable was the noise. I put a 4.5 GB IBM 7200 RPM HDD in this to replace its original Seagate that was on its last legs. While this is quieter than that Seagate (which probably had a bad bearing), it is too loud to leave on if I want to actually sleep. That meant I had to power it down at the end of the day, but there's a problem with that.</p>
+
+<p>A feature in OpenBSD called KARL relinks the kernel on every boot. With only 128 MB of RAM, this would exhaust the AlphaStation's available RAM and swap to disk. Every boot would take about 15 minutes for this process to complete before the machine was usable. These machines can support up to 256 MB of RAM from what I have read, and I suspect this would speed up KARL considerably. I actually do have another 128 MB of RAM sitting in a drawer for it, but have not installed it because there is very little room in between the RAM slots in which to work and I was afraid of breaking the RAM that was already in there, or damaging a slot. My routine for the week was to power it on in the morning, go make a coffee, and check back later.</p>
+
+<p>I started off by using lynx for web browsing, but then came across retawq, compiled that from ports, and have not looked back. I never thought of lynx as slow or bloated, but retawq on the AlphaStation is significantly faster and uses several MB less RAM. It also allows you to split the retawq session in the terminal a bit like tmux, so you can effectively have two sites open. Previously I would use lynx in a tmux session for this, but retawq saves some RAM while doing so, and is a lot faster.</p>
+
+<p>There were some annoyances. For some reason, the backspace key did not work in retawq but does in lynx. My workaround was to use the "Remove" key, which behaves like the "Delete" key and gets the job done. I suspect this is due to OpenBSD not actually using the LK402-AA keyboard layout, so quite a few keys do not behave as expected. I never did figure out how to change the layout to support this keyboard, or if its even possible for the LK402.</p>
+
+<p>I was pleased whenever I found sites that rendered well in lynx or retawq and I really hope that more people pay attention to such things when setting up a site. It is quite easy to read and stay focused in a terminal browser, especially on a VT220 where splitting the terminal to jump to a new site (the equivalent of a new tab) sacrifices quite a bit of usable display area.</p>
+
+<p>I did miss git, and this challenge exposed my reliance on it. I don't particularly like git, but it's convenient because lots of other people use it. I ended up SSH'ing to a different machine to clone or update a repo, then SFTP'd it to the AlphaStation. This could all be avoided by just using CVS in the base system, but my code is all in git repos and I didn't have time to change them over. I will have to explore this in the future.</p>
+
+<p>Frankly I did not miss any other software. On modern computers, the only graphical application I use is a web browser. Everything else is a CLI application anyway, so switching to a VT220 for a week was not a shock or a hindrance, beyond the obvious web browsing differences. My normal development environment is just vi, so there was no real difference there apart from having ot use Ctrl-[ instead of ESC due to the aforementioned keyboard layout issues.</p>
+
+<p>Most importantly, I found that I wasted much less time. Instead of mindlessly web browsing, I browsed purposefully. Since the machine is quite noisy, I used it less often. I spent more time reading, purged some old stuff that had been sitting around for far too long, and changed the oil in my truck, which I had been putting off.</p>
+
+<p>Yes, I know. These are no great feats of human achievement. Yet it's actually not an exaggeration to say that I would not have done these things had I been using a modern computer. The amount of times I went to reach for my X1 and stopped myself was rather embarrassing. I apparently spend way too much time just mindlessly flicking between websites and tasks, and during the challenge, all of this extra time opened up because doing so on the AlphaStation was painful or impossible. This time wasting is something I really ought to reign in, and I am glad to be aware of it.</p>
+
+<p>I did not use Reddit, which was probably a good thing for my sanity. I did not miss Youtube. And while I don't use Twitter, it was blissful to be unaware of whatever the perpetually outraged Twitter mob is outraged about now, due to lack of embedded tweets in lynx and retawq.</p>
+
+<p>Overall, it was worth doing, and exposed some things that I need to improve in myself. I think it could be healthy to use this machine much more often and regulate my time spent on modern computers moving forward.</p>
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/misc/week-with-an-alphastation.html</guid>
+        <link>http://kernelpanic.life/misc/week-with-an-alphastation.html</link>
+        <pubDate>Fri, 16 Jul 2021 05:00:00 GMT</pubDate>
+    </item>
+
+
+    <item>
       <title>The Old Computer Challenge and Why I Need It</title>
         <description>
         <![CDATA[
