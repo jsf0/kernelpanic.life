@@ -7,6 +7,67 @@
     <atom:link href="http://kernelpanic.life/rss.xml" rel="self" type="application/rss+xml" />
 
     <item>
+      <title>OpenBSD Compile Time Comparison</title>
+        <description>
+        <![CDATA[
+<p>A recent <a href=https://portal.mozz.us/gemini/thfr.info/openbsd/Compile-Time-Comparison-Oct-2021/>post</a> by thfr@ compared the compilation time of godot between several different systems. I thought the idea was interesting, so I decided to compare the compile time of OpenBSD's userland on 3 ThinkPads: a 9th Gen X1 Carbon, a T14 AMD, and a T470p.</p>
+
+<p>Relevant specs of the test machines are below:</p>
+<ul>
+	<li><strong>X1 Carbon:</strong> 4 core, 8 thread i7-1165G7, 16G RAM, 256G Toshiba KXG6AZNV256G NVMe SSD</li>
+	<li><strong>T14 AMD:</strong> 8 core, 16 thread, AMD 4750U, 16G RAM, 512G Samsung MZVLB512 NVMe SSD</li>
+	<li><strong>T470p:</strong> 4 core i5-7300HQ, 16G RAM, 1TB WD Blue WDS100T2B0A SATA SSD</li>
+</ul>
+
+<p>All of these were running OpenBSD 7.0 and the test was to compile a -current userland from source taken on Octboer 15, 2021. All the machines were running with apm set to maximum performance (-H), and were on the same wooden desk with ambient temperature of 72 degrees Fahrenheit. Test parameters and results are below:</p>
+
+<p>SMT disabled</p>
+<pre><code># time make -j4 build</code></pre> 
+<ul>
+	<li><strong>T14 AMD:</strong> 102m00.53s real   307m41.15s user    50m14.75s system</li>
+	<li><strong>T470p:</strong> 118m05.43s real   350m06.74s user    47m24.35s system</li>
+	<li><strong>X1 Carbon:</strong> 118m52.04s real   344m04.21s user    56m10.47s system</li>
+</ul>
+
+<p>With 4 jobs, the T14 came out on top, but interestingly the nearly brand new X1 was beaten by the much older i5-7300HQ in the T470p. The T470p has a substantially better cooling setup due to its higher TDP, and is a thicker and heavier laptop. If the X1 was throttling due to heat, this could explain the difference here. Since the i7-1165G7 in the X1 supports hyperthreading whereas the i5-7300HQ in the T470p does not, I was curious if SMT would improve things on the X1:</p>
+
+<p>SMT enabled</p>
+<pre><code># time make -j8 build</code></pre>
+<ul>
+	<li><strong>X1 Carbon:</strong> 116m16.38s real   601m13.06s user   141m22.17s system</li>
+</ul>
+
+<p>SMT made a very slight difference, shortening the build time by 2 minutes, but this is hardly a dramatic improvement. Next, I wanted to see if giving make 8 jobs and hopefully using all 8 physical cores on the T14's Ryzen 4750U would make a difference:</p>
+
+<p>SMT still disabled</p>
+<pre><code># make -j8 build</code></pre>
+<ul>
+	<li><strong>T14 AMD:</strong> 79m39.31s real   388m05.55s user   108m43.00s system</li>
+</ul>
+
+<p>It did. We saved about 23 minutes with -j8 as opposed to -j4 on the 8 core 4750U. What if we enable SMT and throw 16 jobs at it?</p>
+
+<p>SMT enabled</p>
+<pre><code># make -j16 build</code></pre>
+<ul>
+	<li><strong>T14 AMD:</strong> 80m06.85s real   620m42.05s user   315m44.07s system</li>
+</ul>
+
+<p>No real difference, and we even lost about 30 seconds.</p>
+
+<p>It's interesting that the i5-7300HQ in a T470p mildly beat the newer i7-1165G7 despite the i7 having better benchmark figures in Geekbench, Passmark, and some other tests and having much faster NVMe storage than the SATA drive in the T470p. The case and heatsink design of the T470p seems to be the difference here, as it has much more generous cooling than the tightly packed X1 Carbon. Granted, the i7-1165G7 needed 30 fewer watts to match the older i5's performance.</p>
+
+<p>Adding physical cores buys the best performance boost for this task, saving 23 minutes when all 8 cores were used on the 4750U. SMT only made a very mild difference with the i7-1165G7, shaving 2 minutes off the build, and it made no difference with the AMD 4750U, even increasing the time very slightly. I'm not sure if this lack of improvement has to do with OpenBSD specifically, or this specific workload.</p>
+
+<p>Final takeaway: LLVM is gargantuan. I'd guess 85% of the time was spent just building that.</p>
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/hardware/openbsd-compile-time-comparison.html</guid>
+        <link>http://kernelpanic.life/hardware/openbsd-compile-time-comparison.html</link>
+        <pubDate>Fri, 15 Oct 2021 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
       <title>A Week with an AlphaStation: The Old Computer Challenge</title>
         <description>
         <![CDATA[
