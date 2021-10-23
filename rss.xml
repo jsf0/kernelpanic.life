@@ -7,6 +7,54 @@
     <atom:link href="http://kernelpanic.life/rss.xml" rel="self" type="application/rss+xml" />
 
     <item>
+      <title>OpenBSD on the HiFive Unmatched</title>
+        <description>
+        <![CDATA[
+<h2>OpenBSD on the HiFive Unmatched</h2>
+<h3>23-Oct-2021</h3>
+
+<img src="/img/hifive-unmatched-openbsd-7.0.jpg" alt="The HiFive Unmatched">
+
+<p><strong>Year:</strong> 2021</p>
+<p><strong>CPU:</strong> 4 core, 1200 MHz SiFive Freedom U740 64 bit RISC-V</p>
+<p><strong>Graphics:</strong> AMD Radeon R9 270 2 GB</p>
+<p><strong>RAM:</strong> 16 GB</p>
+<p><strong>Storage:</strong> 512 GB Western Digital SN730 NVMe</p>
+<p><strong>"But can it run Chrome?":</strong> No </p>
+<a href="/hardware/dmesg-hifive-unmatched-openbsd-7.0-current.txt">dmesg</a>
+
+<p>My desktop's power supply died, and rather than replace the ill-fated PSU I decided to go with something different. OpenBSD's new <a href=https://www.openbsd.org/riscv64.html">riscv64</a> port looked interesting, so I got a <a href="https://www.sifive.com/boards/hifive-unmatched">HiFive Unmatched</a> to see how it would work as an OpenBSD desktop.</p>
+
+<p>The HiFive Unmatched provides a quad core, 1200 MHz, 64 bit RISC-V SoC in a mini-ITX form factor. It has a plentiful 16 GB of RAM, and supports a M.2 2280 NVMe drive. It also has a full length PCI-e slot, though it is internally only an 8 lane slot. This means that unlike some other development boards, this is well-equipped to serve as a desktop replacement, if you are willing to deal with some quirks.</p>
+
+<p>For this build, I went with a <a href="https://www.newegg.com/silver-metallic-gear-neo-mini-v2-series-mini-itx-tower/p/N82E16811700001?Description=metallic%20gear%20neo%20mini&cm_re=metallic_gear%20neo%20mini-_-11-700-001-_-Product">Metallic Gear Neo Mini V2</a> mini-ITX case, an EVGA 850w Gold PSU scavenged from an old build, and an AMD R9 270 GPU. You definitely don't need an 850w PSU; I just happened to have one.</p>
+
+<p>The case is quite nice, and though it has little room for extra cables, it does fit a full length GPU comfortably and has adequate airflow. The Unmatched does not require much power, nor does it run hot, so the cooling provided by the case's included 120mm intake fan and a 140mm exhaust fan I pulled off an older machine is more than enough. The Unmatched comes with a small, but busy 25mm CPU fan that is just loud enough to be irritating. Some searching shows that folks have replaced this with a 40mm Noctua to reduce noise, and depending on how annoyed I get, I may do this in the future. Temps from the two sensors exposed to sysctl have been about 34-35 Celsius, so cooling is not a problem in this case.</p>
+
+<p>I used OpenBSD 7.0 for this install and simply following the instructions worked fine. There is little difference in the installation process apart from the presence of an SD card. The Unmatched comes with a micro SD card preloaded with u-boot and a small Linux system with XFCE4. This SD card must be inserted while booting the system from a USB or NVMe drive because it will boot the SD first, then load the OpenBSD bootloader. There are some DIP switches on the board that can override the boot order, but by default they are setup to boot the SD card first and I was not adventurous enough to change this.</p>
+
+<p>The version of the <a href="https://github.com/sifive/freedom-u-sdk">SiFive Freedom U SDK</a> that the included SD card came with was 2021.03.00 and I had some trouble connecting to the serial console from OpenBSD. I decided to update this to version 2021.09.00. I wanted to keep the provided SD card as a backup though, so flagrantly ignoring the warnings in SiFive's documentation about SD card compatibility, I tried a variety of micro SD cards I had sitting around, and unsurprisingly none of them worked. The board is very picky about which SD cards it will boot, and my Samsung EVO and other random cards did not make the cut. I ended up just flashing the new image over the included SD card and the serial console worked after that.</p>
+
+<p>I tried a couple GPUs with OpenBSD. An RX 5700XT and an RX 460 did not work with amdgpu. The R9 270 works great with radeondrm though, and is capable of driving a 4k display. X11 runs smoothly with this setup and has been quite stable. The built-in Linux distro on the SD card did work with the RX 460, though I did not try with the 5700XT.</p>
+
+<p>The onboard Cadence ethernet controller is supported by cad(4), but it is not currently reliable and you are advised to use a USB ethernet adapter, or USB wireless. I gave the onboard ethernet a try, and it did not work. I'm using an Atheros AR9271 USB wireless adapter and it works fine. My usual go-to USB, a Buffalo WLI-UC-GNM supported by run(4), had errors trying to load the firmware on this board.</p>
+
+<p>Performance of the 4 1200MHz cores is capable, if not overwhelming. It feels significantly faster than a Pinebook Pro running OpenBSD, but the Pinebook Pro currently does not have GPU acceleration on OpenBSD, so the Unmatched has a huge advantage here. Having NVMe storage is a real benefit too, and the system does not feel sluggish at all.</p>
+
+<p>Package selection is still rather limited for riscv64, so you may not find what you want. It's not much worse than macppc however. There are no Javascript-capable web browsers available at this time, so I am using Netsurf, which is my favorite browser anyway. It does all I need from a browser and is quite fast.</p> 
+
+<p>As this is a very new port of OpenBSD, support is not complete and bugs can be expected. I foolishly decided to enable soft updates just to see what would happen, and what happened was that it immediately experienced a lockup. I believe it's related, though it is hard to prove and I could not get any debugging info as the thing was locked up solid. This has not happened again since disabling soft updates. It later also had trouble relinking the kernel and left the system with a borked MP kernel. I ended up booting to the single processor kernel and downloading the MP kernel again off a mirror to replace it. If you are reading this from The Future, these bugs may have been ironed out.</p>
+
+<p>I don't have many complaints apart from the noisy CPU fan and an IO shield that was absurdly frustrating to install. It's remarkable how well this runs on OpenBSD already given the short amount of time the riscv64 port has been in development, and the devs have my thanks for putting in the work here.</p>  
+
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/hardware/hifive-unmatched.html</guid>
+        <link>http://kernelpanic.life/hardware/hifive-unmatched.html</link>
+        <pubDate>Sat, 23 Oct 2021 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
       <title>OpenBSD Compile Time Comparison</title>
         <description>
         <![CDATA[
