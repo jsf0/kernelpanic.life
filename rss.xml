@@ -21,7 +21,7 @@
 <p><strong>RAM:</strong> 16 GB</p>
 <p><strong>Storage:</strong> 512 GB Western Digital SN730 NVMe</p>
 <p><strong>"But can it run Chrome?":</strong> No </p>
-<a href="/hardware/dmesg-hifive-unmatched-openbsd-7.0-current.txt">dmesg</a>
+<p><a href="/hardware/dmesg-hifive-unmatched-openbsd-7.0-current.txt">dmesg</a></p>
 
 <p>My desktop's power supply died, and rather than replace the ill-fated PSU I decided to go with something different. OpenBSD's new <a href=https://www.openbsd.org/riscv64.html">riscv64</a> port looked interesting, so I got a <a href="https://www.sifive.com/boards/hifive-unmatched">HiFive Unmatched</a> to see how it would work as an OpenBSD desktop.</p>
 
