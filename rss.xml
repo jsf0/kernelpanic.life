@@ -7,6 +7,40 @@
     <atom:link href="http://kernelpanic.life/rss.xml" rel="self" type="application/rss+xml" />
 
     <item>
+      <title>The ThinkPad X1 Carbon 9th Gen, 8 Months Later</title>
+        <description>
+        <![CDATA[
+
+<p>I've been using a <a href="/hardware/thinkpad-x1-carbon-gen9.html">pair of 9th Gen X1 Carbons</a> for roughly 8 months now. One of them was issued to me by my employer and has been running Linux. The other was one that I bought for myself, which runs OpenBSD. This will be my thoughts on these two after 8 months of daily use, and some of the progress and problems that I have seen in that span.</p>
+
+<p>The work X1 has been running either Ubuntu 21.04 or Fedora 35, with the 5.10 series kernels for the bulk of that timeframe. It is currently running Fedora 35. Hardware support has been excellent and everything worked well, up to a couple weeks ago when the laptop stopped suspending when the lid is closed. As with most things with computers, it was working one day, I changed absolutely nothing, and it stopped working the next day with no obvious cause (yes, I know in reality I probably rebooted into a new kernel or something without remembering it). </p>
+
+<p>The work laptop has seen much more use, and phyiscally is holding up fairly well. The keyboard is still great, and has no problems with keys binding, double pressing, or any other weirdness. The trackpoint and its buttons are working as expected, and the trackpoint tends to float a lot less than older ThinkPads I have used. The only thing that is giving me problems is the trackpad, which fairly early on developed a tendency to register a 3 finger press (i.e, middle button) when I was only using one finger. This had the irritating effect of closing tabs in Firefox when trying to select with a left click by tapping the touchpad, since that tap was recorded as a middle button press.</p>
+
+<p>While hardcore Thinkpadders are doubtless readying to excoriate me for using the touchpad at all and not using the trackpoint exclusively, I do use the touchpad relatively often with the work laptop because it has the stock trackpoint cap, which is not my preference, and I do not have any more spare concave <a href="https://www.etsy.com/shop/SaotoTech">SaotoTech</a> caps. On my personal X1 with the concave cap, I just have the touchpad disabled completely. The touchpad on my personal X1 also works perfectly, likely because it has seen almost no use.</p>
+
+<p>Battery life on both laptops has not seen any degradation. Both are reporting about 56.99 Wh at max capacity, out of a design capacity of 57 Wh, so these batteries are both at full capacity. The rubberized coating around the USB-C charging port on the work laptop is looking a bit scruffy, but the port is holding up fine and the cable still seats firmly in the USB-C slot even after a lot of use.</p>
+
+<p>On the software side, OpenBSD support has improved tremendously on my X1 since I first got it. The main issues in May 2021 were crashy Intel graphics, no suspend/resume, and some flakiness with the iwx wireless card. As of right now, the laptop is running a -current snapshot from January 25th and these problems have been ironed out.</p>
+
+<p>The Intel graphics are smooth and stable ever since OpenBSD's drm got synced with Linux 5.10.47 on July 6th 2021 (many thanks to jsg@ for the hard work here). I did find that Chromium based browsers have terrible screen tearing when scrolling on OpenBSD. My tried-and-true troubleshooting method of randomly flipping all the vaguely graphics-related switches that I don't fully understand in chrome://flags was unsuccessful. However, this is not a problem with Firefox, and my current setup in both OpenBSD and Linux is to use Firefox with gfx.webrender.all enabled and layers.acceleration.force-enabled set to true. This results in the smoothest browsing experience in all my experiments.</p>
+
+<p>Lenovo introduced a BIOS update to add S3 style suspend/resume instead of just providing the brave new world of Intel Evo. Though this did not immediately fix it on OpenBSD, some additional work was done on this in OpenBSD last year and suspend/resume now work perfectly with the Linux-style suspend selected in the BIOS.</p>
+
+<p>Lastly, the iwx driver has come a long way, and now even supports 40 MHz channels. Some speed testing at home shows this maxes at about 185 Mb/s with my Ubiquiti UAP-AC-PRO. It is also much more stable after some recent firmware changes. At the moment, this is the only BSD that supports the AX201 wireless card in this laptop. Work is being done in FreeBSD to port the Linux driver for this, but it is not yet complete. Keep an eye on <a href="https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=244261">iwlwifi</a> in FreeBSD if you want to run FreeBSD on this laptop.</p>
+
+<p>In summary, all the rough edges with this hardware in OpenBSD seem to be worked out. I only run -current, so I am not sure how many of these changes made it in the 7.0 release or not. If you run -stable, you would very likely have very good support in 7.1 whenever that is released. I would even venture to say the X1 works better in OpenBSD -current right now than it does in Linux at this point, since at least suspend and resume work. I'm still trying to find a solution for that on Fedora 35 with the work laptop.</p>
+
+
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/hardware/thinkpad-x1-carbon-8-month-review.html</guid>
+        <link>http://kernelpanic.life/hardware/thinkpad-x1-carbon-8-month-review.html</link>
+        <pubDate>Thu, 27 Jan 2022 05:00:00 GMT</pubDate>
+    </item>
+
+
+    <item>
       <title>OpenBSD on the HiFive Unmatched</title>
         <description>
         <![CDATA[
