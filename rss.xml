@@ -7,6 +7,29 @@
     <atom:link href="http://kernelpanic.life/rss.xml" rel="self" type="application/rss+xml" />
 
     <item>
+       <title>Quieting a Supermicro E300-8D</title>
+         <description>
+		 <![CDATA[
+
+<h2>Quieting a Supermicro E300-8D</h2>
+<h3>21-April-2022</h3>
+
+<p>I use a Supermicro E300-8D as a router/gateway, mainly for two reasons: it has IPMI, and its 2.2 GHz Xeon D-1518 can do gigabit NAT with OpenBSD without any trouble. The downside has always been noise. While it's not the vaccuum cleaner hum of a Sun T5220, or the ludicrous jet engine howl of a T1000, it is whiny, and even though it lives in the basement, I can hear it upstairs.</p>
+
+<p>I had some Noctua NF-A4x20 fans sitting around from a failed attempt at quieting down that infernal T1000, so I replaced the E300's two fans with two of these. Installation could not be easier. Just take out the two fans, replace with the Noctuas, and plug them in. There is actually a space on the fan bracket for a third fan if you want, but I didn't bother.</p>
+
+<p>Despite being probably too small and probably too wimpy, they work great. It is almost whisper quiet. I cranked up the CPU with 'apm -H', ran 'sha512 /dev/random', then promptly got distracted and forgot about it. About 30 minutes later, CPU temps were a steady 58 C, and both fans were at 5000 rpm.</p>
+
+<p>If you're using one of these servers hard, maybe you would want a more powerful fan. But for router duties, I'm extremely happy with these Noctuas.</p>
+
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/hardware/quieting-a-supermicro.html</guid>
+        <link>http://kernelpanic.life/hardware/quieting-a-supermicro.html</link>
+        <pubDate>Thu, 21 April 2022 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
       <title>Dead Souls: Reflecting on the Internet and Social Media</title>
         <description>
         <![CDATA[
