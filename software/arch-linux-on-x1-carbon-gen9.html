@@ -1,0 +1,208 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>A Commented Arch Linux Setup on the 9th Gen X1 Carbon</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a> | <a href="/rss.xml">rss</a>
+<hr>
+<h2>A Commented Arch Linux Setup on the 9th Gen X1 Carbon</h2>
+<h3>19-May-2022</h3>
+
+<p>I pulled out the X1 Carbon today for the first time in a while, and evidently I had put Arch Linux on it, though I can't remember when or why. This post will cover my setup on here and explain what is going on in each file, mainly so that if I ever do this again I can refer back to it. Hopefully others will find it useful too. If you are coming to this page from The Future, some of it may no longer be valid.</p>
+
+<p>Nowadays I only install this using the archinstall script, depriving me of the joy of configuring my bootloader, generating locales, and lovingly creating precision-crafted partitions by hand. My loss I guess. Frankly, installing Arch manually is a waste of time, unless you either have weird requirements, or want to feel imperious about the affair.</p>
+
+<p>I set up my network config in the Arch live system with iwctl, and archinstall helpfully copied it into the installed system, so I did not have to mess with it after boot. I chose btrfs for the filesystem, and full disk encryption. All of that is handled by archinstall.</p>
+
+<p>I use slim as an X11 login manager. This will run my .xinitrc below:</p>
+
+<pre>
+<code>
+xrdb ~/.Xresources
+feh --bg-fill ~/pics/bg
+( sleep 1s && bash ~/.start_lemonbar.sh | lemonbar -p -F#FFB8B8B8 B#000000 -f "Fira Code" -f FontAwesome) &
+cwm
+</code>
+</pre>
+
+<p>This file is simple. We'll load .Xresources, use feh to set the background, which is whatever image ~/pics/bg is, then start lemonbar using a script and throw it into the background. Then, launch cwm. I use cwm as a window manager because it's what I use in OpenBSD and I cannot be bothered to learn anything else. It's in the <a href="https://aur.archlinux.org/packages/cwm">AUR</a>. My ~/.cwmrc is below:</p>
+
+<pre>
+<code>
+borderwidth 1
+
+sticky yes
+
+bind-key M-1 group-only-1
+bind-key M-2 group-only-2
+bind-key M-3 group-only-3
+bind-key M-4 group-only-4
+bind-key M-5 group-only-5
+bind-key M-6 group-only-6
+
+bind-key MS-1 window-movetogroup-1
+bind-key MS-2 window-movetogroup-2
+bind-key MS-3 window-movetogroup-3
+bind-key MS-4 window-movetogroup-4
+bind-key MS-5 window-movetogroup-5
+bind-key MS-6 window-movetogroup-6
+
+color activeborder rgb:cf/b5/3b
+color inactiveborder rgb:cf/b5/3b
+color menubg rgb:00/00/00
+color menufg rgb:cf/cf/cf
+color font rgb:cf/cf/cf
+color selfont rgb:00/00/00
+
+gap 75 00 00 00
+
+# Uncomment this to set your terminal to terminator
+#bind-key CM-Return "/usr/bin/terminator"
+
+bind-key XF86MonBrightnessDown "/usr/bin/xbacklight -dec 10"
+bind-key XF86MonBrightnessUp "/usr/bin/xbacklight -inc 10"
+
+bind-key XF86AudioRaiseVolume "/usr/bin/pamixer -i 5"
+bind-key XF86AudioLowerVolume "/usr/bin/pamixer -d 5"
+bind-key XF86AudioMute "/usr/bin/pamixer -t"
+
+bind-key CM-b "/usr/bin/firefox https://start.duckduckgo.com"
+bind-key CM-z "/usr/bin/scrot '%m-%d_screenshot.png' -e 'mv $f ~/pics'"
+
+bind-key CM-8 "/usr/bin/setxkbmap ru phonetic"
+bind-key CM-9 "/usr/bin/setxkbmap us"
+
+bind-key CM-h window-htile
+bind-key CM-v window-vtile
+</code>
+</pre>
+
+<p>This setup is pretty easy to use. It uses cwm's window groups to mimic virtual desktops. "C" is the Control key. "M" is the meta key, which is the Alt key on this ThinkPad. "S" is the shift key. So, Alt-1 puts you on desktop 1, Alt-2 puts you on desktop 2, etc. Alt+Shift+2 would send the current window to desktop 2.</p>
+
+<p>For some reason, the keys for brightness, volume, etc do not work on Arch by default, though maybe  Iam doing something wrong. Instead of trying to fix that, I just mapped those keys to xbacklight and pamixer commands with the XF86 keybindings you see. It works.</p>
+
+<p>Ctrl-Alt-b opens a browser (Firefox in this case). Ctrl-Alt-Return opens a terminal. If you uncomment the line defining this, it will use terminator. If you don't, cwm defaults to xterm. I use terminator, but left that line commented for this post, to protect anyone copying and pasting this blindly without having terminator installed.</p>
+
+<p>The htile and vtile things at the bottom will mimic a tiling window manager, tiling your windows horiztontally or vertically with Ctrl-Alt-h or Ctrl-Alt-v respectively. As I type this, I realize that I hardly ever use this.</p>
+
+<p>I'm using lemonbar to provide a bar to show some basic info. I don't really need much; a clock, my battery level, and volume will suffice. I found this lemonbar script on the internet somewhere, though I can't remember where. If it was yours, I appreciate it and thanks for sharing it. I lightly modified it to suit my needs:</p>
+
+<pre>
+<code>
+#!/usr/bin/bash
+
+Clock(){
+	TIME=$(date "+%H:%M:%S")
+	echo -e -n " \uf017 ${TIME}"
+}
+
+Cal() {
+    DATE=$(date "+%a, %d %B %Y")
+    echo -e -n "\uf073 ${DATE}"
+}
+
+ActiveWindow(){
+	len=$(echo -n "$(xdotool getwindowfocus getwindowname)" | wc -m)
+	max_len=70
+	if [ "$len" -gt "$max_len" ];then
+		echo -n "$(xdotool getwindowfocus getwindowname | cut -c 1-$max_len)..."
+	else
+		echo -n "$(xdotool getwindowfocus getwindowname)"
+	fi
+}
+
+Battery() {
+	BATTACPI=$(acpi --battery)
+	BATPERC=$(echo $BATTACPI | cut -d, -f2 | tr -d '[:space:]')
+
+	if [[ $BATTACPI == *"100%"* ]]
+	then
+		echo -e -n "\uf00c $BATPERC"
+	elif [[ $BATTACPI == *"Discharging"* ]]
+	then
+		BATPERC=${BATPERC::-1}
+		if [ $BATPERC -le "10" ]
+		then
+			echo -e -n "\uf244"
+		elif [ $BATPERC -le "25" ]
+		then
+			echo -e -n "\uf243"
+		elif [ $BATPERC -le "50" ]
+		then
+			echo -e -n "\uf242"
+		elif [ $BATPERC -le "75" ]
+		then
+			echo -e -n "\uf241"
+		elif [ $BATPERC -le "100" ]
+		then
+			echo -e -n "\uf240"
+		fi
+		echo -e "Batt: $BATPERC%"
+	elif [[ $BATTACPI == *"Charging"* && $BATTACPI != *"100%"* ]]
+	then
+		echo -e "Batt: \uf0e7 $BATPERC"
+	elif [[ $BATTACPI == *"Unknown"* ]]
+	then
+		echo -e "Batt: $BATPERC"
+	fi
+}
+
+Wifi(){
+	WIFISTR=$( iwconfig wlan0 | grep "Link" | sed 's/ //g' | sed 's/LinkQuality=//g' | sed 's/\/.*//g')
+	if [ ! -z $WIFISTR ] ; then
+		WIFISTR=$(( ${WIFISTR} * 100 / 70))
+		ESSID=$(iwconfig wlan0 | grep ESSID | sed 's/ //g' | sed 's/.*://' | cut -d "\"" -f 2)
+		if [ $WIFISTR -ge 1 ] ; then
+			echo -e "\uf1eb ${ESSID} ${WIFISTR}%"
+		fi
+	fi
+}
+
+Sound(){
+	NOTMUTED=$( pamixer --get-volume-human | grep -v "mute" )
+	if [[ ! -z $NOTMUTED ]] ; then
+		VOL=$(pamixer --get-volume-human)
+		echo -e "Vol: \uf028 ${VOL}"
+	else
+		echo -e "Vol: \uf026 M"
+	fi
+}
+
+while true; do
+	echo -e " %{l}$(ActiveWindow) %{r}$(Wifi)  $(Battery)  $(Sound)  $(Clock) $(Cal)"
+	sleep 0.1s
+done
+</code>
+</pre>
+
+<p>This is what that line in .xinitrc earlier will execute whenever X11 starts. All it does is show me my current window title, wifi SSID and signal strength, battery, volume, time, and date, all in a bar on top. The gap setting in .cwmrc ensures that this is not obscured by maximized windows.</p>
+
+<p>Since this X1 Carbon has a 4k display, scaling becomes a problem at the default of 96 dpi. I have this set with a single line in ~/.Xresources, which is loaded when X11 starts by the xrdb command in .xinitrc above:</p>
+
+<pre>
+<code>
+Xft.dpi: 323
+</code>
+</pre>
+
+<p>That results in a usable size for my eyesight.</p>
+
+<p>Video now works fine on kernel 5.17 without having to use the intelmedia driver, so the old problem of choppiness on the Intel Xe graphics has been solved. Suspend and resume work on this kernel too. There was something I had to do to get sound to work. I can't remember what I did, but it works now. You can probably figure it out.</p>
+
+<p>That's about it for a usable setup.</p>
+
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>

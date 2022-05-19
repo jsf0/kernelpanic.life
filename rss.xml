@@ -8,6 +8,204 @@
 
 
     <item>
+	    <title>A Commented Arch Linux Setup on the 9th Gen X1 Carbon</title>
+	      <description>
+		      <![CDATA[
+
+<h2>A Commented Arch Linux Setup on the 9th Gen X1 Carbon</h2>
+<h3>19-May-2022</h3>
+
+<p>I pulled out the X1 Carbon today for the first time in a while, and evidently I had put Arch Linux on it, though I can't remember when or why. This post will cover my setup on here and explain what is going on in each file, mainly so that if I ever do this again I can refer back to it. Hopefully others will find it useful too. If you are coming to this page from The Future, some of it may no longer be valid.</p>
+
+<p>Nowadays I only install this using the archinstall script, depriving me of the joy of configuring my bootloader, generating locales, and lovingly creating precision-crafted partitions by hand. My loss I guess. Frankly, installing Arch manually is a waste of time, unless you either have weird requirements, or want to feel imperious about the affair.</p>
+
+<p>I set up my network config in the Arch live system with iwctl, and archinstall helpfully copied it into the installed system, so I did not have to mess with it after boot. I chose btrfs for the filesystem, and full disk encryption. All of that is handled by archinstall.</p>
+
+<p>I use slim as an X11 login manager. This will run my .xinitrc below:</p>
+
+<pre>
+<code>
+xrdb ~/.Xresources
+feh --bg-fill ~/pics/bg
+( sleep 1s && bash ~/.start_lemonbar.sh | lemonbar -p -F#FFB8B8B8 B#000000 -f "Fira Code" -f FontAwesome) &
+cwm
+</code>
+</pre>
+
+<p>This file is simple. We'll load .Xresources, use feh to set the background, which is whatever image ~/pics/bg is, then start lemonbar using a script and throw it into the background. Then, launch cwm. I use cwm as a window manager because it's what I use in OpenBSD and I cannot be bothered to learn anything else. It's in the <a href="https://aur.archlinux.org/packages/cwm">AUR</a>. My ~/.cwmrc is below:</p>
+
+<pre>
+<code>
+borderwidth 1
+
+sticky yes
+
+bind-key M-1 group-only-1
+bind-key M-2 group-only-2
+bind-key M-3 group-only-3
+bind-key M-4 group-only-4
+bind-key M-5 group-only-5
+bind-key M-6 group-only-6
+
+bind-key MS-1 window-movetogroup-1
+bind-key MS-2 window-movetogroup-2
+bind-key MS-3 window-movetogroup-3
+bind-key MS-4 window-movetogroup-4
+bind-key MS-5 window-movetogroup-5
+bind-key MS-6 window-movetogroup-6
+
+color activeborder rgb:cf/b5/3b
+color inactiveborder rgb:cf/b5/3b
+color menubg rgb:00/00/00
+color menufg rgb:cf/cf/cf
+color font rgb:cf/cf/cf
+color selfont rgb:00/00/00
+
+gap 75 00 00 00
+
+# Uncomment this to set your terminal to terminator
+#bind-key CM-Return "/usr/bin/terminator"
+
+bind-key XF86MonBrightnessDown "/usr/bin/xbacklight -dec 10"
+bind-key XF86MonBrightnessUp "/usr/bin/xbacklight -inc 10"
+
+bind-key XF86AudioRaiseVolume "/usr/bin/pamixer -i 5"
+bind-key XF86AudioLowerVolume "/usr/bin/pamixer -d 5"
+bind-key XF86AudioMute "/usr/bin/pamixer -t"
+
+bind-key CM-b "/usr/bin/firefox https://start.duckduckgo.com"
+bind-key CM-z "/usr/bin/scrot '%m-%d_screenshot.png' -e 'mv $f ~/pics'"
+
+bind-key CM-8 "/usr/bin/setxkbmap ru phonetic"
+bind-key CM-9 "/usr/bin/setxkbmap us"
+
+bind-key CM-h window-htile
+bind-key CM-v window-vtile
+</code>
+</pre>
+
+<p>This setup is pretty easy to use. It uses cwm's window groups to mimic virtual desktops. "C" is the Control key. "M" is the meta key, which is the Alt key on this ThinkPad. "S" is the shift key. So, Alt-1 puts you on desktop 1, Alt-2 puts you on desktop 2, etc. Alt+Shift+2 would send the current window to desktop 2.</p>
+
+<p>For some reason, the keys for brightness, volume, etc do not work on Arch by default, though maybe  Iam doing something wrong. Instead of trying to fix that, I just mapped those keys to xbacklight and pamixer commands with the XF86 keybindings you see. It works.</p>
+
+<p>Ctrl-Alt-b opens a browser (Firefox in this case). Ctrl-Alt-Return opens a terminal. If you uncomment the line defining this, it will use terminator. If you don't, cwm defaults to xterm. I use terminator, but left that line commented for this post, to protect anyone copying and pasting this blindly without having terminator installed.</p>
+
+<p>The htile and vtile things at the bottom will mimic a tiling window manager, tiling your windows horiztontally or vertically with Ctrl-Alt-h or Ctrl-Alt-v respectively. As I type this, I realize that I hardly ever use this.</p>
+
+<p>I'm using lemonbar to provide a bar to show some basic info. I don't really need much; a clock, my battery level, and volume will suffice. I found this lemonbar script on the internet somewhere, though I can't remember where. If it was yours, I appreciate it and thanks for sharing it. I lightly modified it to suit my needs:</p>
+
+<pre>
+<code>
+#!/usr/bin/bash
+
+Clock(){
+	TIME=$(date "+%H:%M:%S")
+	echo -e -n " \uf017 ${TIME}"
+}
+
+Cal() {
+    DATE=$(date "+%a, %d %B %Y")
+    echo -e -n "\uf073 ${DATE}"
+}
+
+ActiveWindow(){
+	len=$(echo -n "$(xdotool getwindowfocus getwindowname)" | wc -m)
+	max_len=70
+	if [ "$len" -gt "$max_len" ];then
+		echo -n "$(xdotool getwindowfocus getwindowname | cut -c 1-$max_len)..."
+	else
+		echo -n "$(xdotool getwindowfocus getwindowname)"
+	fi
+}
+
+Battery() {
+	BATTACPI=$(acpi --battery)
+	BATPERC=$(echo $BATTACPI | cut -d, -f2 | tr -d '[:space:]')
+
+	if [[ $BATTACPI == *"100%"* ]]
+	then
+		echo -e -n "\uf00c $BATPERC"
+	elif [[ $BATTACPI == *"Discharging"* ]]
+	then
+		BATPERC=${BATPERC::-1}
+		if [ $BATPERC -le "10" ]
+		then
+			echo -e -n "\uf244"
+		elif [ $BATPERC -le "25" ]
+		then
+			echo -e -n "\uf243"
+		elif [ $BATPERC -le "50" ]
+		then
+			echo -e -n "\uf242"
+		elif [ $BATPERC -le "75" ]
+		then
+			echo -e -n "\uf241"
+		elif [ $BATPERC -le "100" ]
+		then
+			echo -e -n "\uf240"
+		fi
+		echo -e "Batt: $BATPERC%"
+	elif [[ $BATTACPI == *"Charging"* && $BATTACPI != *"100%"* ]]
+	then
+		echo -e "Batt: \uf0e7 $BATPERC"
+	elif [[ $BATTACPI == *"Unknown"* ]]
+	then
+		echo -e "Batt: $BATPERC"
+	fi
+}
+
+Wifi(){
+	WIFISTR=$( iwconfig wlan0 | grep "Link" | sed 's/ //g' | sed 's/LinkQuality=//g' | sed 's/\/.*//g')
+	if [ ! -z $WIFISTR ] ; then
+		WIFISTR=$(( ${WIFISTR} * 100 / 70))
+		ESSID=$(iwconfig wlan0 | grep ESSID | sed 's/ //g' | sed 's/.*://' | cut -d "\"" -f 2)
+		if [ $WIFISTR -ge 1 ] ; then
+			echo -e "\uf1eb ${ESSID} ${WIFISTR}%"
+		fi
+	fi
+}
+
+Sound(){
+	NOTMUTED=$( pamixer --get-volume-human | grep -v "mute" )
+	if [[ ! -z $NOTMUTED ]] ; then
+		VOL=$(pamixer --get-volume-human)
+		echo -e "Vol: \uf028 ${VOL}"
+	else
+		echo -e "Vol: \uf026 M"
+	fi
+}
+
+while true; do
+	echo -e " %{l}$(ActiveWindow) %{r}$(Wifi)  $(Battery)  $(Sound)  $(Clock) $(Cal)"
+	sleep 0.1s
+done
+</code>
+</pre>
+
+<p>This is what that line in .xinitrc earlier will execute whenever X11 starts. All it does is show me my current window title, wifi SSID and signal strength, battery, volume, time, and date, all in a bar on top. The gap setting in .cwmrc ensures that this is not obscured by maximized windows.</p>
+
+<p>Since this X1 Carbon has a 4k display, scaling becomes a problem at the default of 96 dpi. I have this set with a single line in ~/.Xresources, which is loaded when X11 starts by the xrdb command in .xinitrc above:</p>
+
+<pre>
+<code>
+Xft.dpi: 323
+</code>
+</pre>
+
+<p>That results in a usable size for my eyesight.</p>
+
+<p>Video now works fine on kernel 5.17 without having to use the intelmedia driver, so the old problem of choppiness on the Intel Xe graphics has been solved. Suspend and resume work on this kernel too. There was something I had to do to get sound to work. I can't remember what I did, but it works now. You can probably figure it out.</p>
+
+<p>That's about it for a usable setup.</p>
+
+	]]>
+	</description>
+        <guid>http://kernelpanic.life/software/arch-linux-on-x1-carbon-gen9.html</guid>
+        <link>http://kernelpanic.life/software/arch-linux-on-x1-carbon-gen9.html</link>
+        <pubDate>Thu, 19 May 2022 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
        <title>OpenBSD on the 2020 M1 MacBook Air</title>
          <description>
                  <![CDATA[
@@ -90,47 +288,6 @@ export QT_SCALE_FACTOR=2.0
         <link>http://kernelpanic.life/hardware/quieting-a-supermicro.html</link>
         <pubDate>Thu, 21 April 2022 05:00:00 GMT</pubDate>
     </item>
-
-    <item>
-      <title>Dead Souls: Reflecting on the Internet and Social Media</title>
-        <description>
-        <![CDATA[
-
-<p>As we begin a new year, I have been thinking about how as of 2022, I have been involved in internet forums for now the majority of my life. This has not been a good thing, and in this post I'll reflect on the changes I have seen this cause in myself, and why I no longer participate in them.</p>
-
-<p>Most people who hand-wring about social media will focus on the way people treat other people. Often they focus specifically on social media's alarming tendency to facilitate a complete demonization of another person, and reduce them to an avatar of an ideology rather than a human being, which provides a green light to treat them with cruelty. All of this happens, and all of it is indeed important. But what I have found is that there is a more subtle damage that occurs--a damage to my own sense of self and identity.</p>
-
-<p>In a real life conversation with one other person, your interlocutor sees, hears, and perceives you as you. This recognition of yourself allows your thoughts to be your own more easily, and the privacy of the encounter lessens external constraints that may shape your thoughts and responses. One of the goals you will have is to reach consensus, in which case you both see something of your own self in the other's thoughts and recognize it externally. By "consensus" I mean a shared belief, a shared perspective, something in which you both find humor, or pain, or joy. But even if you do not reach consensus, because there are only two of you, you are still balanced equally, even if on opposite sides. No one is left outside in a group of two, because there is no outside.</p>
-
-<p>A group conversation has a different dynamic. With two other interlocutors, the group is still small enough for your own self to exist positively within the conversation. Yet here a lack of consensus has different implications. It could mean that all three of you have independent views, in which case you are still balanced. But there is also the possibility of two of you agreeing while the third does not, and now a group has formed on one side, and someone is excluded from it.</p>
-
-<p>As a group grows in size it becomes less likely that there will be the balanced consensuslessness (this probably isn't a word; don't use in real life) of two individuals who do not agree, or three individuals who take three independent views. It becomes extremely likely that there will be an unbalanced lack of consensus, in which some are within the majority and some are not.</p>
-
-<p>The internet allows for groups on massive scales, while simultaneously, it flattens the human participant to no more than a screen name and maybe an avatar. Because interaction is public, there is a panopticon effect, which when combined with the dehumanizing flattening, intensifies the group-ness of the group conversation, and all of its dangers.</p>
-
-<p>Exclusion is no fun at all. The unconscious fear of it can cause us to subtly adopt mannerisms, humor, language, and ideas that will place us within the group and win us acceptance, while avoiding mannerisms, humor, language, and ideas that risk placing us in opposition to the gorup. When <i>everyone</i> in a given group (especially a large one) is constantly measuring their thoughts and responses in terms of how they will be received, the thing that governs the interactions within the group becomes a type of god--an invisible hand, or <i>animus</i> that subsists within the discourse. It is godlike because it is an Ideal to which each participant subjugates and conforms their individual selves. Since any Ideal can be failed to be reached, every Ideal is also a Judge. We can clearly see how this is a Judge with the power to damn and exclude.</p>
-
-<p>The loss of my self came about slowly. It started perhaps when someone else posted something that was initially received negatively. The first few responses tend to dictate how the rest of the thread will go. So I would pile on. Even if I was factually right, it's not necessary. Here I was competing for attention and recognition of the group. In my mind, I thought I was contributing, correcting, or otherwise being useful. Subconsciously it was a desire to be seen as smart, or insightful, or funny, or most dedicated. But in reality, it was an attempt to demonstrate my worthiness and conformity to the Ideal, a plea to avoid Judgement and damnation, a prostration before the idol.</p>
-
-<p>This gradually and imperceptibly proceeded to adopting linguistic terms used by everyone else in order to signal my belonging. These weren't <i>my</i> words. They weren't anyone's words. Whoever first used them is irrelevant and forgotten. They were the idol's words, and we would simply repeat them back to show our fealty to it.</p>
-
-<p>I would spend a lot of time refreshing pages to see if my contributions were met with approval or recognition. Any criticism of my posts or comments would have a much more devastating effect on my psyche than text on a screen from a stranger ought. At first this loss of self was limited to my online behavior. Then it seeped into my thoughts. I began to go about my daily life thinking in terms framed by the community, and even judging my thoughts by that standard, rejecting any that might have received criticism if voiced online.</p>  
-
-<p>At a certain point I became aware of this, and frightened by how much different my thought patterns were than they had been fifteen years earlier. I could not distinguish between my own thoughts and those that came from outside. Validation, attention, recognition, and external approval were driving so much of my behavior that my own self was effectively dead.</p>
-
-<p>I quit all of it. I deleted all of my accounts, limited my time spend on the internet to a minimum, then eventually eliminated even that to just what is required for my job, updating this blog, and nothing more. It took some time, but I eventually felt alive again, and no longer imprisoned by my own ego's relentless desire for validation.</p>
-
-<p>I'm not sitting up here in condemnation of anyone, except my own self. I'm not claiming to be totally free of this problem either; becoming alive is a lifelong process. I also realize that not everyone will be affected by the internet in this way. But I suspect that the viciousness that we see on the internet can be attributed to this subconscious idol-worship that causes us to lose our own individuality, and replace it with the <i>animus</i> of the group. To constantly seek approval, likes, upvotes, and retweets rather than engage with each other seriously. Instead of speaking to each other, we are in a cafeteria shouting across the table, with one eye over our shoulder checking to see how many people are listening and making sure they like us. Instead of forming our own thoughts and expressions, we reflect those of the group like a mirror, always afraid of judgement. We have dead selves, and dead souls.</p>
-
-<p><i>"The glory of God is a human being fully alive."--Saint Irenaeus</i></p>
-
-        ]]>
-        </description>
-        <guid>http://kernelpanic.life/misc/dead_souls.html</guid>
-        <link>http://kernelpanic.life/misc/dead_souls.html</link>
-        <pubDate>Sat, 29 Jan 2022 05:00:00 GMT</pubDate>
-    </item>
-
 
     <item>
       <title>The ThinkPad X1 Carbon 9th Gen, 8 Months Later</title>
