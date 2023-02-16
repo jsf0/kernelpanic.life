@@ -1,0 +1,55 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+
+<html>
+<head>
+<title>Cloning a System With Ansible</title>
+<link rel="stylesheet" href="/site.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="/index.html">home</a> | <a href="/hardware.html">hardware</a> | <a href="/software.html">software</a> | <a href="/misc.html">misc</a> | <a href="/about.html">about</a> | <a href="/rss.xml">rss</a>
+<hr>
+<h2>Cloning a System with Ansible</h2>
+<h3>16-Feb-2023</h3>
+
+<p>I've wanted a tool to take an existing system and create an Ansible playbook that will duplicate it. This would let me set up a laptop how I want it, and then quickly reproduce that setup on a different laptop without having to remember what I did. As far as I know, there's nothing out there that does this. Since the only way to find out is to spend hours writing it myself and then discover someone else way better than me has done it, I wrote a small Python script called <a href=https://github.com/jsf0/ansible-clone>ansible-clone</a> for this purpose.</p>
+
+<p>It will detect all the installed packages on the system on which its running, find all the enabled services, and include the contents of any config files you provide it, and generate an Ansible playbook to duplicate this. The config files are provided by giving ansible-clone an INI file that looks something like this:</p>
+
+<pre>
+<code>
+[spectrwm.conf]
+path = /home/joe/.spectrwm.conf
+
+[pf.conf]
+path = /home/joe/pf.conf
+</code>
+</pre>
+
+<p>The contents of these files will be placed in the playbook to be copied to those same paths when Ansible is run.</p>
+
+<p>Putting it all together, you would do something like this:</p>
+
+<pre>
+<code>
+$ ansible-clone -c configs.ini -f playbook.yml
+</code>
+</pre>
+
+<p>The resulting file playbook.yml can then be copied to a different system, and you can run ansible-playbook on it to duplicate the system from which it came.</p>
+
+<p>The script is super rough and a work in progress, but it produces valid yaml, which is proof that there is a God, because any yaml that is actually valid is to be considered a miraculous event. Currently it only supports FreeBSD and OpenBSD, but adding support for other operating systems is just a matter of adding in the proper package and service listing commands, and instructions are in the README if you want to hack on it. Eventually I'd like to have it support Linux too, but my priority right now is getting it working well on the BSDs.</p>
+
+<p>The project is on <a href=https://github.com/jsf0/ansible-clone>Github</a> if you want to give it a try. Patches are welcome.</p>
+
+<br>
+<script src="https://utteranc.es/client.js"
+        repo="jsf0/kernelpanic.life"
+        issue-term="title"
+        theme="github-light"
+        crossorigin="anonymous"
+        async>
+</script>
+</body>
+</html>
