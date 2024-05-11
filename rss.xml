@@ -8,6 +8,47 @@
 
 
     <item>
+       <title>The ThinkPad X1 Carbon 9th Gen</title>
+         <description>
+		 <![CDATA[
+
+	<h2>OpenBSD and High DPI Displays</h2>
+<h3>11-May-2024</h3>
+
+<p>I put OpenBSD back on the <a href="/hardware/thinkpad-x1-carbon-gen9.html">4k X1 Carbon</a> and realized that I forgot how I made X11 usable on a high DPI display last time. So I followed standard X11 troubleshooting procedures of changing the same config file name at all 947 possible paths that X11 will search for it until something looked different on the screen. If you're reading this, you probably are in the midst of this same procedure, and no, nothing I found online worked either.</p>
+
+<p>For GTK and QT5 applications, I set to 2x scaling in my ~/.xsession like this:</p>
+
+<pre>
+<code>
+export GDK_SCALE=2.0
+export QT_SCALE_FACTOR=2.0
+</code>
+</pre>
+
+<p>Note that it really is "G<b>D</b>K" instead of GTK.</p>
+
+<p>Next, I set Xft.dpi and the Xcursor sizes in ~/.Xdefaults. The internet inists on telling you to change these in .Xresources, but don't do that. OpenBSD's xenocara really likes .Xdefaults. Even if I manually tried to xrdb load .Xresources, random stuff wouldn't work, like the Xcursor sizes (even though Xft.dpi did work for some reason). My ~/.Xdefaults is below:</p>
+
+<code>
+<pre>
+Xft.dpi: 144
+Xcursor.theme: Adwaita
+Xcursor.size: 64
+</pre>
+</code>
+
+<p>Obviously adjust those values as you desire.</p>
+
+
+        ]]>
+        </description>
+        <guid>http://kernelpanic.life/software/openbsd-high-dpi.html</guid>
+        <link>http://kernelpanic.life/software/openbsd-high-dpi.html</link>
+        <pubDate>Fri, 11 May 2024 05:00:00 GMT</pubDate>
+    </item>
+
+    <item>
         <title>Cloning a System With Ansible</title>
           <description>
               <![CDATA[
